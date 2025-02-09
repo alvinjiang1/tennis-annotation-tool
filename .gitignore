@@ -17,6 +17,7 @@ pip-log.txt
 pip-delete-this-directory.txt
 backend/uploads
 backend/processed
+backends/checkpoints
 
 # Flask Logs
 *.log
