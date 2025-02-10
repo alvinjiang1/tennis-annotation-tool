@@ -3,6 +3,8 @@ import os
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 
+from routes.util import split_dataset
+
 annotation_router = Blueprint("annotation", __name__)
 
 # Path for saving COCO-style annotations locally
@@ -31,20 +33,19 @@ def save_annotation_rest():
     image_url = data.get("image_url")
     bounding_boxes = data.get("bounding_boxes", [])
     width = data.get("width")
-    height = data.get("height")
-    label = data.get("label")
+    height = data.get("height")    
 
     if not image_url or not bounding_boxes:
         return jsonify({"error": "Missing image_url or bounding_boxes"}), 400
 
     # Save to COCO format locally    
-    save_annotation_coco(image_url, bounding_boxes, width, height, label)    
+    save_annotation_coco(image_url, bounding_boxes, width, height)    
 
     return jsonify({"message": "Annotation saved successfully"}), 200
 
 
 # Function to save annotations in COCO format
-def save_annotation_coco(image_url, bounding_boxes, width, height, label):
+def save_annotation_coco(image_url, bounding_boxes, width, height):
     try:
         with open(ANNOTATIONS_FILE, "r") as f:
             coco_data = json.load(f)
@@ -64,26 +65,32 @@ def save_annotation_coco(image_url, bounding_boxes, width, height, label):
             coco_data["categories"] = []
 
         categories = {}
-        for cat in coco_data["categories"]:            
-            categories[cat["name"]] = cat["id"]            
-                
-        if label not in categories:
-            new_id = len(coco_data["categories"]) + 1            
+        # Retrieve existing labels
+        for cat in coco_data["categories"]:
+            categories[cat["name"]] = cat["id"]
+        
+        # Add any new labels
+        cat_id = len(categories) + 1
+        for box in bounding_boxes:           
+            if box["label"] not in categories: 
+                categories[box["label"]] = cat_id
+                cat_id += 1
+
+        coco_data["categories"] = []
+        for label in categories.keys():            
             coco_data["categories"].append(
                 {
-                    "id": new_id,
+                    "id": categories[label],
                     "name": label,
                     "supercategory": "person"
                 }
-            )            
-            categories[label] = new_id
-
+            )                                
         # Add bounding boxes
         for i, box in enumerate(bounding_boxes):
             coco_data["annotations"].append({
                 "id": len(coco_data["annotations"]) + 1,
                 "image_id": image_id,
-                "category_id": categories[label],
+                "category_id": categories[box["label"]],
                 "bbox": [box["x"], box["y"], box["width"], box["height"]],
                 "area": box["width"] * box["height"],
                 "iscrowd": 0

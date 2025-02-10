@@ -146,8 +146,7 @@ const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, i
             body: JSON.stringify({ image_url: imageUrl, 
               bounding_boxes: boundingBoxes, 
               width: imageSize['width'], 
-              height: imageSize['height'], 
-              label: selectedLabel})
+              height: imageSize['height']})
         });
 
         const restData = await restResponse.json();

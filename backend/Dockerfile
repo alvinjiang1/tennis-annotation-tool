@@ -10,13 +10,25 @@ WORKDIR /app
 # Copy backend files
 COPY . /app
 
-RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libavutil-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    pkg-config \
+    build-essential \
+    libffi-dev
 
 # Install dependencies
 RUN pip install -r requirements.txt
+
+RUN cd GroundingDINO/models/GroundingDINO/ops && \
+    python setup.py build install
 
 # Expose the backend port
 EXPOSE 5000
 
 # Run the Flask application
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+
