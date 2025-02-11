@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { startTraining } from "./api";
+import { TRAINING } from "../routes/useToolbarTab";
 
-const TrainingButton = () => {
+type TrainingButtonProps = {
+  setToolbarTab: (tabIndex: number) => void;
+};
+
+export default function TrainingButton({setToolbarTab}: TrainingButtonProps) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -10,6 +15,8 @@ const TrainingButton = () => {
     setLoading(true);
     const success = await startTraining();
     setLoading(false);
+
+    setToolbarTab(TRAINING);
 
     if (success) {
       setMessage("Training started successfully!");
@@ -27,5 +34,3 @@ const TrainingButton = () => {
     </>
   );
 };
-
-export default TrainingButton;
