@@ -118,4 +118,19 @@ use_coco_eval = False
 
 label_list = ['Black Shirt White Shoes', 'Black Shirt Black Shoes', 'White Shirt Black Shoes', 'White Shirt White Shoes']
 
+
+label_list = ['Black Shirt White Shoes', 'Black Shirt Black Shoes', 'White Shirt Black Shoes', 'White Shirt White Shoes']
+
+
+label_list = ['Black Shirt White Shoes', 'Black Shirt Black Shoes', 'White Shirt Black Shoes', 'White Shirt White Shoes']
+
+
+label_list = ['Black Shirt White Shoes', 'Black Shirt Black Shoes', 'White Shirt Black Shoes', 'White Shirt White Shoes']
+
+
+label_list = ['Black Shirt White Shoes', 'Black Shirt Black Shoes', 'White Shirt Black Shoes', 'White Shirt White Shoes']
+
+
+label_list = ['Black Shirt White Shoes', 'Black Shirt Black Shoes', 'White Shirt Black Shoes', 'White Shirt White Shoes']
+
 dn_scalar = 100

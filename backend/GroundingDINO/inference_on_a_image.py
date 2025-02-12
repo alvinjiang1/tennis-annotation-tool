@@ -1,7 +1,6 @@
 import argparse
 import os
 import numpy as np
-import json
 import torch
 from PIL import Image, ImageDraw, ImageFont
 
@@ -17,14 +16,12 @@ from groundingdino.util.vl_utils import create_positive_map_from_span
 def plot_boxes_to_image(image_pil, tgt):
     H, W = tgt["size"]
     boxes = tgt["boxes"]
-    labels = tgt["labels"]    
+    labels = tgt["labels"]
     assert len(boxes) == len(labels), "boxes and labels must have same length"
 
     draw = ImageDraw.Draw(image_pil)
     mask = Image.new("L", image_pil.size, 0)
     mask_draw = ImageDraw.Draw(mask)
-
-    new_boxes= []
 
     # draw boxes and masks
     for box, label in zip(boxes, labels):
@@ -38,7 +35,6 @@ def plot_boxes_to_image(image_pil, tgt):
         # draw
         x0, y0, x1, y1 = box
         x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
-        new_boxes.append([x0, y0, x1, y1])
 
         draw.rectangle([x0, y0, x1, y1], outline=color, width=6)
         # draw.text((x0, y0), str(label), fill=color)
@@ -55,7 +51,7 @@ def plot_boxes_to_image(image_pil, tgt):
 
         mask_draw.rectangle([x0, y0, x1, y1], fill=255, width=6)
 
-    return image_pil, mask, new_boxes
+    return image_pil, mask
 
 
 def load_image(image_path):
@@ -159,7 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--image_path", "-i", type=str, required=True, help="path to image file")
     parser.add_argument("--text_prompt", "-t", type=str, required=True, help="text prompt")
     parser.add_argument(
-        "--output_dir", "-o", type=str, default="outputs", required=True, help="output directory"
+        "--output_dir", "-o", type=str, default="predictions", required=True, help="output directory"
     )
 
     parser.add_argument("--box_threshold", type=float, default=0.3, help="box threshold")
@@ -192,7 +188,7 @@ if __name__ == "__main__":
     model = load_model(config_file, checkpoint_path, cpu_only=args.cpu_only)
 
     # visualize raw image
-    image_pil.save(os.path.join(output_dir, "raw_image.jpg"))
+    # image_pil.save(os.path.join(output_dir, "raw_image.jpg"))
 
     # set the text_threshold to None if token_spans is set.
     if token_spans is not None:
@@ -212,25 +208,8 @@ if __name__ == "__main__":
         "size": [size[1], size[0]],  # H,W
         "labels": pred_phrases,
     }
-    image_with_box, _, new_boxes = plot_boxes_to_image(image_pil, pred_dict)
-    labels = pred_dict["labels"]
-    save_path = os.path.join(output_dir, "pred.jpg")
+    image_with_box = plot_boxes_to_image(image_pil, pred_dict)[0]
+    image = image_path.split("/")[-1]
+    save_path = os.path.join(output_dir, image)
     image_with_box.save(save_path)
     print(f"\n======================\n{save_path} saved.\nThe program runs successfully!")
-
-    # Save bounding box information in COCO format
-    coco_format = {
-        "filename": output_dir.split("/")[-1],
-        "annotations": [
-            {                
-                "category": label,
-                "bbox": box,                                  
-            }
-            for label, box in zip(labels, new_boxes)
-        ],        
-    }
-
-    json_save_path = os.path.join(output_dir, "predictions.json")
-    with open(json_save_path, 'w') as json_file:
-        json.dump(coco_format, json_file)
-    print(f"\n======================\n{json_save_path} saved.\nThe program runs successfully!")

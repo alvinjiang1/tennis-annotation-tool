@@ -22,6 +22,9 @@ backend/weights
 backend/training_data
 backend/bert
 backend/GroundingDINO/output
+backend/groundingdino
+backend/build
+backend/predictions
 
 # Flask Logs
 *.log

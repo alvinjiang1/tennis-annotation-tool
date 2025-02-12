@@ -11,9 +11,10 @@ interface BoundingBox {
 interface BoundingBoxAnnotatorProps {
   imageUrl: string;  
   isAnnotating: boolean;
+  setIsAnnotating: (isAnnotating: boolean) => void;
 }
 
-const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, isAnnotating }) => {
+const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, isAnnotating , setIsAnnotating}) => {
   const [boundingBoxes, setBoundingBoxes] = useState<BoundingBox[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
@@ -152,7 +153,9 @@ const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, i
         const restData = await restResponse.json();
         if (!restResponse.ok) {
             throw new Error(`REST API failed: ${restData.error}`);
-        }
+        }     
+        
+        setIsAnnotating(false);
 
         alert("Annotations saved via REST API (backup).");
     } catch (restError) {

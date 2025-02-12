@@ -49,8 +49,6 @@ def upload_video():
         "-vf", "scale=1280:720",  # Resize all frames to 1280x720
         output_frames
     ]
-
-
     subprocess.run(ffmpeg_cmd, check=True)
 
     return jsonify({"message": "Video uploaded and processed successfully", 

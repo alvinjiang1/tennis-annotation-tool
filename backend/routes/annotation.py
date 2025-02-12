@@ -27,6 +27,8 @@ def save_annotation_rest():
         "bounding_boxes": [
             {"x": 10, "y": 20, "width": 50, "height": 60, "label": "Player 1"}
         ]
+        "width": 1280,
+        "height": 720
     }
     """
     data = request.json
@@ -120,7 +122,6 @@ def get_annotations_rest():
     annotations_file = json.loads(ANNOTATIONS_FILE)
     return annotations_file
 
-@annotation_router.route("/get", methods=["GET"])
-def get_groundingdino_predictions():
-    #TODO: Implement GroundingDINO
-    return {}
+@annotation_router.route("/label", methods=["POST"])
+def label_frame():
+    return jsonify({"message": "Frame labelled successfully"}), 200

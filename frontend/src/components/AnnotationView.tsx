@@ -9,7 +9,7 @@ export default function AnnotationView () {
         <>
         <VideoUploader onUploadSuccess={setUploadedVideo} />        
         {uploadedVideo && (                   
-        <FrameDisplay videoFilename={uploadedVideo} />        
+        <FrameDisplay videoFilename={uploadedVideo} labelShots={false}/>        
         )}
         </>
 
