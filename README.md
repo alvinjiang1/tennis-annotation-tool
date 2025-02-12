@@ -88,7 +88,7 @@ npm run dev
 ### Run Backend Locally
 ```sh
 cd backend
-pip install -r requirements.txt
+pip install -e .
 flask run
 ```
 
