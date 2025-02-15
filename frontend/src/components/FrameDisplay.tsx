@@ -17,6 +17,7 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots})
   const handlePrevious = () => setCurrentIndex((prev) => Math.max(0, prev - 1));
   const handleNext = () => setCurrentIndex((prev) => Math.min(frames.length - 1, prev + 1));
   const toggleAnnotation = () => setIsAnnotating(!isAnnotating);
+  const handleSliderChange = (value: number) => setCurrentIndex(value);
 
   return (
     <div className="frame-container flex flex-col items-center p-4">
@@ -36,18 +37,20 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots})
                 onPrevious={handlePrevious}
                 onNext={handleNext}
                 onToggleAnnotation={toggleAnnotation}
+                onSliderChange={handleSliderChange}
               />
 
               {/* Bounding Box Annotator */}
-              {!labelShots &&<BoundingBoxAnnotator
+              {!labelShots && <BoundingBoxAnnotator
                 imageUrl={frames[currentIndex]}
                 isAnnotating={isAnnotating}
                 setIsAnnotating={setIsAnnotating}
               />}
-              {labelShots &&<ShotAnnotator
-              imageUrl={frames[currentIndex]}
-              isAnnotating={isAnnotating}
-              setIsAnnotating={setIsAnnotating}/>}
+              {labelShots && <ShotAnnotator
+                imageUrl={frames[currentIndex]}
+                isAnnotating={isAnnotating}
+                setIsAnnotating={setIsAnnotating}
+              />}
             </div>
           ) : (
             <p>No frames found. Please upload a video first.</p>
