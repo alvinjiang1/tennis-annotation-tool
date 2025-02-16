@@ -3,10 +3,14 @@ import { useState, useEffect } from "react";
 const backendUrl = "http://localhost:5000";
 
 // Training API functions
-export const startTraining = async (): Promise<boolean> => {
+export const startTraining = async (videoId: string): Promise<boolean> => {
     try {
         const response = await fetch(`${backendUrl}/api/training/train/start`, {
-            method: "POST"
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ video_id: videoId })
         });
 
         if (!response.ok) {
@@ -43,44 +47,35 @@ export const getInferingStatus = async (): Promise<{ running: boolean; last_stat
 
 interface FrameResponse {
     frames: string[];
-    frame_count: number;
-    video_id: string;
-    error: string;
+    error?: string;
 }
 
-export default function useFetchFrames(videoFilename: string, labelShots: boolean) {
+export default function useFetchFrames(videoId: string, labelShots: boolean) {
     const [frames, setFrames] = useState<string[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!videoFilename) return;
+        if (!videoId) return;
 
         const fetchFrames = async () => {
             try {
                 setLoading(true);
                 setError(null);
                 
-                const videoId = videoFilename.split('.')[0]; // Remove file extension
-                let response;
-
-                if (labelShots) {
-                    // Fetch predicted frames (inference results)
-                    response = await fetch(`${backendUrl}/api/inference/frames/${videoId}`);
-                } else {
-                    // Fetch original frames from new endpoint
-                    response = await fetch(`${backendUrl}/api/video/frames/${videoId}`);
-                }
-
+                const endpoint = labelShots 
+                    ? `${backendUrl}/api/inference/frames/${videoId}`
+                    : `${backendUrl}/api/video/frames/${videoId}`;
+                
+                const response = await fetch(endpoint);
                 const data: FrameResponse = await response.json();
 
                 if (response.ok) {
                     const frameUrls = data.frames.map((frame: string) => {
-                        if (labelShots) {
-                            return `${backendUrl}/api/inference/frame/${videoId}/${frame}`;
-                        } else {
-                            return `${backendUrl}/api/video/frame/${videoId}/${frame}`;
-                        }
+                        const baseEndpoint = labelShots
+                            ? `${backendUrl}/api/inference/frame/${videoId}`
+                            : `${backendUrl}/api/video/frame/${videoId}`;
+                        return `${baseEndpoint}/${frame}`;
                     });
                     
                     setFrames(frameUrls);
@@ -98,7 +93,24 @@ export default function useFetchFrames(videoFilename: string, labelShots: boolea
         };
 
         fetchFrames();
-    }, [videoFilename, labelShots]);
+    }, [videoId, labelShots]);
 
     return { frames, loading, error };
 }
+
+export const checkVideoReadiness = async (videoId: string): Promise<{
+    frames: boolean;
+    annotations: boolean;
+    message?: string;
+}> => {
+    try {
+        const response = await fetch(`${backendUrl}/api/video/check/${videoId}`);
+        if (!response.ok) {
+            throw new Error('Failed to check video readiness');
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Error checking video readiness:', error);
+        return { frames: false, annotations: false, message: 'Error checking files' };
+    }
+};

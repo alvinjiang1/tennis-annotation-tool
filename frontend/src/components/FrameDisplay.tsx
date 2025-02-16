@@ -45,6 +45,7 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots})
                 imageUrl={frames[currentIndex]}
                 isAnnotating={isAnnotating}
                 setIsAnnotating={setIsAnnotating}
+                videoId={videoFilename.split(".")[0]}
               />}
               {labelShots && <ShotAnnotator
                 imageUrl={frames[currentIndex]}

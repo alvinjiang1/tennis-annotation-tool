@@ -12,18 +12,24 @@ interface BoundingBoxAnnotatorProps {
   imageUrl: string;  
   isAnnotating: boolean;
   setIsAnnotating: (isAnnotating: boolean) => void;
+  videoId: string; // Added videoId prop
 }
 
-const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, isAnnotating , setIsAnnotating}) => {
+const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ 
+  imageUrl, 
+  isAnnotating, 
+  setIsAnnotating,
+  videoId
+}) => {
   const [boundingBoxes, setBoundingBoxes] = useState<BoundingBox[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
   const [currentBox, setCurrentBox] = useState<BoundingBox | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
-  const [imageSize, setImageSize] = useState({ width: 0, height: 0 }); // Store original image size
-  const [playerDescriptions, setPlayerDescriptions] = useState(["", "", "", ""]); // Empty descriptions
-  const [selectedLabel, setSelectedLabel] = useState(""); // Initially empty
-  const [descriptionsConfirmed, setDescriptionsConfirmed] = useState(false); // Prevent annotation before input
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [playerDescriptions, setPlayerDescriptions] = useState(["", "", "", ""]);
+  const [selectedLabel, setSelectedLabel] = useState("");
+  const [descriptionsConfirmed, setDescriptionsConfirmed] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -50,7 +56,6 @@ const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, i
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx.drawImage(img, 0, 0);
 
-    // Draw saved bounding boxes
     boundingBoxes.forEach((box) => {
       ctx.strokeStyle = "red";
       ctx.lineWidth = 2;
@@ -60,7 +65,6 @@ const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, i
       ctx.fillText(box.label, box.x + 4, box.y + 12);
     });
 
-    // ✅ Draw real-time bounding box while dragging
     if (currentBox) {
       ctx.strokeStyle = "blue";
       ctx.lineWidth = 2;
@@ -68,16 +72,14 @@ const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, i
     }
     
     if (mousePos) {
-      ctx.strokeStyle = "rgba(0, 255, 0, 0.5)"; // Green guide lines
+      ctx.strokeStyle = "rgba(0, 255, 0, 0.5)";
       ctx.lineWidth = 1;
 
-      // Vertical line
       ctx.beginPath();
       ctx.moveTo(mousePos.x, 0);
       ctx.lineTo(mousePos.x, ctx.canvas.height);
       ctx.stroke();
 
-      // Horizontal line
       ctx.beginPath();
       ctx.moveTo(0, mousePos.y);
       ctx.lineTo(ctx.canvas.width, mousePos.y);
@@ -141,25 +143,27 @@ const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, i
     }
     
     try {
-        const restResponse = await fetch("http://localhost:5000/api/annotation/save", {
+        const response = await fetch("http://localhost:5000/api/annotation/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ image_url: imageUrl, 
+            body: JSON.stringify({ 
+              image_url: imageUrl, 
               bounding_boxes: boundingBoxes, 
-              width: imageSize['width'], 
-              height: imageSize['height']})
+              width: imageSize.width, 
+              height: imageSize.height,
+              video_id: videoId
+            })
         });
 
-        const restData = await restResponse.json();
-        if (!restResponse.ok) {
-            throw new Error(`REST API failed: ${restData.error}`);
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(`API failed: ${data.error}`);
         }     
         
         setIsAnnotating(false);
-
-        alert("Annotations saved via REST API (backup).");
-    } catch (restError) {
-        console.error("REST API request failed:", restError);
+        alert("Annotations saved successfully!");
+    } catch (error) {
+        console.error("Failed to save annotations:", error);
         alert("Failed to save annotations!");
     }
   };
@@ -176,7 +180,7 @@ const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, i
       return;
     }
     setDescriptionsConfirmed(true);
-    setSelectedLabel(playerDescriptions[0]); // Default selection
+    setSelectedLabel(playerDescriptions[0]);
   };
 
   return (
@@ -196,10 +200,9 @@ const BoundingBoxAnnotator: React.FC<BoundingBoxAnnotatorProps> = ({ imageUrl, i
                 value={desc}
                 onChange={(e) => handleDescriptionChange(index, e.target.value)}
               />              
-              
             ))}            
           </div>
-          <img src={imageUrl} className="border rounded"></img>
+          <img src={imageUrl} className="border rounded" alt="Preview" />
           <button className="btn btn-primary mt-2" onClick={confirmDescriptions}>
             Confirm & Start Annotating
           </button>

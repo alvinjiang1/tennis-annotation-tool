@@ -67,6 +67,8 @@ def upload_video():
 
 @video_router.route("/frames/<video_id>", methods=["GET"])
 def get_video_frames(video_id):
+    video_id = video_id.split(".")[0]
+    
     # returns list of extracted frames for a video
     frames_dir = os.path.join(RAW_FRAMES_DIR, video_id)
     
@@ -82,6 +84,8 @@ def get_video_frames(video_id):
 
 @video_router.route("/frame/<video_id>/<frame_filename>")
 def serve_frame(video_id, frame_filename):
+    video_id = video_id.split(".")[0]
+    
     # Serves individual frame image files
     frames_dir = os.path.join(RAW_FRAMES_DIR, video_id)
     
@@ -94,3 +98,101 @@ def serve_frame(video_id, frame_filename):
 def serve_video(filename):
     # Serves the original video file
     return send_from_directory(UPLOAD_FOLDER, filename)
+
+@video_router.route("/check/<video_id>", methods=["GET"])
+def check_video_readiness(video_id):
+    """Check if video frames and annotations are available"""
+    
+    # Check for frames
+    frames_path = os.path.join("data", "raw_frames", video_id)
+    has_frames = os.path.exists(frames_path) and len(os.listdir(frames_path)) > 0
+    
+    # Check for annotations
+    annotations_path = os.path.join("data", "annotations", f"{video_id}_coco_annotations.json")
+    has_annotations = os.path.exists(annotations_path)
+    
+    # Prepare message
+    message = []
+    if not has_frames:
+        message.append("Video frames not found")
+    if not has_annotations:
+        message.append("Annotations not found")
+    
+    return jsonify({
+        "frames": has_frames,
+        "annotations": has_annotations,
+        "message": ". ".join(message) if message else "Ready for training"
+    })
+    
+@video_router.route("/check_inference/<video_id>", methods=["GET"])
+def check_inference_readiness(video_id):
+    """Check if video frames and annotations are available"""
+    
+    # Check for frames
+    frames_path = os.path.join("data", "raw_frames", video_id)
+    has_frames = os.path.exists(frames_path) and len(os.listdir(frames_path)) > 0
+    
+    # Check for annotations
+    annotations_path = os.path.join("data", "annotations", f"{video_id}_coco_annotations.json")
+    has_annotations = os.path.exists(annotations_path)
+    
+    # Check for predictions
+    predictions_path = os.path.join("data", "grounding_frames", video_id)
+    has_predictions = os.path.exists(predictions_path) and len(os.listdir(predictions_path)) > 0
+    
+    # Prepare message
+    message = []
+    if not has_frames:
+        message.append("Video frames not found")
+    if not has_annotations:
+        message.append("Annotations not found")
+    if not has_predictions:
+        message.append("Predictions not found")
+    
+    return jsonify({
+        "frames": has_frames,
+        "annotations": has_annotations,
+        "message": ". ".join(message) if message else "Ready for inference"
+    })
+
+
+@video_router.route("/list", methods=["GET"])
+def list_videos():
+    """List all videos with their readiness status (frames and annotations)"""
+    try:
+        # Get all video IDs from raw_frames directory
+        raw_frames_path = os.path.join("data", "raw_frames")
+        if not os.path.exists(raw_frames_path):
+            return jsonify([])
+            
+        video_ids = [d for d in os.listdir(raw_frames_path) 
+                    if os.path.isdir(os.path.join(raw_frames_path, d))]
+        
+        # Check each video's status
+        videos_info = []
+        for video_id in video_ids:
+            # Check frames
+            frames_path = os.path.join(raw_frames_path, video_id)
+            has_frames = len(os.listdir(frames_path)) > 0 if os.path.exists(frames_path) else False
+            
+            # Check annotations
+            annotations_path = os.path.join("data", "annotations", f"{video_id}_coco_annotations.json")
+            has_annotations = os.path.exists(annotations_path)
+            
+            # Get original video name from uploads folder (if available)
+            video_filename = next((f for f in os.listdir(UPLOAD_FOLDER) 
+                                if os.path.splitext(f)[0] == video_id), 
+                                f"{video_id}.mp4")
+            
+            videos_info.append({
+                "id": video_id,
+                "name": video_filename,
+                "has_frames": has_frames,
+                "has_annotations": has_annotations,
+                "ready": has_frames and has_annotations
+            })
+        
+        return jsonify(videos_info)
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to list videos: {str(e)}"}), 500    

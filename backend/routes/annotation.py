@@ -2,93 +2,75 @@ import json
 import os
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-
 from routes.util import split_dataset
 
 annotation_router = Blueprint("annotation", __name__)
 
-# Path for saving COCO-style annotations locally
-ANNOTATIONS_FILE = "coco_annotations.json"
-PREDICTIONS_FILE = "predictions.json"
+# Data directory structure
+DATA_DIR = "data"
+ANNOTATIONS_DIR = os.path.join(DATA_DIR, "annotations")
+os.makedirs(ANNOTATIONS_DIR, exist_ok=True)
 
-# Ensure file exists
-if not os.path.exists(ANNOTATIONS_FILE):
-    with open(ANNOTATIONS_FILE, "w") as f:
-        json.dump({"images": [], "annotations": [], "categories": []}, f)
+def get_annotation_path(video_id):
+    """Get path for video's annotation file"""
+    return os.path.join(ANNOTATIONS_DIR, f"{video_id}_coco_annotations.json")
 
-# REST API for saving annotations
+def initialize_annotation_file(video_id):
+    """Create empty annotation file if not exists"""
+    annotation_file = get_annotation_path(video_id)
+    if not os.path.exists(annotation_file):
+        with open(annotation_file, "w") as f:
+            json.dump({"images": [], "annotations": [], "categories": []}, f)
+    return annotation_file
+
 @annotation_router.route("/save", methods=["POST"])
 def save_annotation_rest():
-    """
-    REST API to save annotations with a local COCO format backup.
-    Expects JSON:
-    {
-        "image_url": "path/to/image.jpg",
-        "bounding_boxes": [
-            {"x": 10, "y": 20, "width": 50, "height": 60, "label": "Player 1"}
-        ]
-        "width": 1280,
-        "height": 720
-    }
-    """
+    """Save annotations in COCO format"""
     data = request.json
     image_url = data.get("image_url")
     bounding_boxes = data.get("bounding_boxes", [])
     width = data.get("width")
-    height = data.get("height")    
+    height = data.get("height")
+    video_id = data.get("video_id")
 
-    if not image_url or not bounding_boxes:
-        return jsonify({"error": "Missing image_url or bounding_boxes"}), 400
+    if not all([image_url, bounding_boxes, video_id]):
+        print("Missing required fields")
+        return jsonify({"error": "Missing required fields"}), 400
 
-    # Save to COCO format locally    
-    save_annotation_coco(image_url, bounding_boxes, width, height)    
-
+    save_annotation_coco(video_id, image_url, bounding_boxes, width, height)
+    print("Annotation saved successfully")
     return jsonify({"message": "Annotation saved successfully"}), 200
 
-
-# Function to save annotations in COCO format
-def save_annotation_coco(image_url, bounding_boxes, width, height):
+def save_annotation_coco(video_id, image_url, bounding_boxes, width, height):
+    """Save annotations in COCO format for specific video"""
     try:
-        with open(ANNOTATIONS_FILE, "r") as f:
+        annotation_file = initialize_annotation_file(video_id)
+        with open(annotation_file, "r") as f:
             coco_data = json.load(f)
 
-        # Create unique image ID using timestamp
         image_id = int(datetime.now().timestamp())
-
-        # Add image entry
+        
         coco_data["images"].append({
             "id": image_id,
             "file_name": image_url.split("/")[-1],
             "width": width,
             "height": height,
-        })        
-        
-        if not coco_data["categories"]:
-            coco_data["categories"] = []
+        })
 
-        categories = {}
-        # Retrieve existing labels
-        for cat in coco_data["categories"]:
-            categories[cat["name"]] = cat["id"]
-        
-        # Add any new labels
+        categories = {cat["name"]: cat["id"] for cat in coco_data["categories"]}
         cat_id = len(categories) + 1
-        for box in bounding_boxes:           
-            if box["label"] not in categories: 
+        
+        for box in bounding_boxes:
+            if box["label"] not in categories:
                 categories[box["label"]] = cat_id
                 cat_id += 1
 
-        coco_data["categories"] = []
-        for label in categories.keys():            
-            coco_data["categories"].append(
-                {
-                    "id": categories[label],
-                    "name": label,
-                    "supercategory": "person"
-                }
-            )                                
-        # Add bounding boxes
-        for i, box in enumerate(bounding_boxes):
+        coco_data["categories"] = [
+            {"id": cat_id, "name": name, "supercategory": "person"}
+            for name, cat_id in categories.items()
+        ]
+
+        for box in bounding_boxes:
             coco_data["annotations"].append({
                 "id": len(coco_data["annotations"]) + 1,
                 "image_id": image_id,
@@ -98,30 +80,20 @@ def save_annotation_coco(image_url, bounding_boxes, width, height):
                 "iscrowd": 0
             })
 
-        # Save back to file
-        with open(ANNOTATIONS_FILE, "w") as f:
+        with open(annotation_file, "w") as f:
             json.dump(coco_data, f, indent=4)
-    
+
     except Exception as e:
         print(f"Error saving COCO annotations: {e}")
+        raise
 
-
-# REST API to fetch all annotations
-@annotation_router.route("/get", methods=["GET"])
-def get_annotations_rest():
-    """
-    REST API to fetch all annotations.
-    Returns JSON:
-    {
-        "annotations": [{"id": 1, "image_url": "path/to/image.jpg", "bounding_boxes": [...] }]
-    }
-    """
-    if not os.path.exists(ANNOTATIONS_FILE):
-        return jsonify({"error": "Annotations file does not exist"}), 500
+@annotation_router.route("/get/<video_id>", methods=["GET"])
+def get_annotations_rest(video_id):
+    """Get annotations for specific video"""
+    annotation_file = get_annotation_path(video_id)
+    if not os.path.exists(annotation_file):
+        return jsonify({"error": "Annotations not found"}), 404
     
-    annotations_file = json.loads(ANNOTATIONS_FILE)
-    return annotations_file
-
-@annotation_router.route("/label", methods=["POST"])
-def label_frame():
-    return jsonify({"message": "Frame labelled successfully"}), 200
+    with open(annotation_file) as f:
+        annotations = json.load(f)
+    return jsonify(annotations)
