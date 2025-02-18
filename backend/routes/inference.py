@@ -68,9 +68,9 @@ def process_frames(video_id, frame_info):
         "-o", predictions_dir
     ]
 
-    # process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    # stdout, stderr = process.communicate()
-    process = subprocess.run(command)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    # process = subprocess.run(command)
 
     if process.returncode != 0:
         print(f"Inference failed for {frame_path}: {stderr.decode('utf-8')}")
@@ -129,7 +129,7 @@ def run_model():
     res = process_frames(video_id, frame_info_list)
     if res:
         print(res)
-        infering_status["running"] = False
+        inferring_status["running"] = False
         inferring_status["last_status"] = res
         return jsonify({"error": inferring_status["last_status"]}), 500
 

@@ -1,0 +1,25 @@
+{
+    "fps": 29.0,
+    "height": 720,
+    "width": 1280,
+    "num_frames": 4,
+    "video": "unknown",
+    "far_name": "Player 3 & Player 4",
+    "far_hand": "Unknown",
+    "near_name": "Player 1 & Player 2",
+    "near_hand": "Unknown",
+    "events": [
+        {
+            "player": "P1",
+            "frame": 1,
+            "label": "near_deuce_serve_-_-_W_in",
+            "outcome": "in"
+        },
+        {
+            "player": "P4",
+            "frame": 3,
+            "label": "far_ad_return_-_-_CC_err",
+            "outcome": "err"
+        }
+    ]
+}

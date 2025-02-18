@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-interface BoundingBox {
+export interface BoundingBox {
   x: number;
   y: number;
   width: number;

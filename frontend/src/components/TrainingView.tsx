@@ -89,7 +89,7 @@ export default function TrainingTab() {
     if (inferenceStatus.running) {
       inferenceIntervalId = window.setInterval(async () => {
         try {
-          const response = await fetch('http://localhost:5000/api/run/status');
+          const response = await fetch('http://localhost:5000/api/inference/run/status');
           const status = await response.json();
           setInferenceStatus(status);
           

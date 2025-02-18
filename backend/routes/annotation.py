@@ -1,19 +1,39 @@
 import json
 import os
+import cv2
 from flask import Blueprint, request, jsonify
 from datetime import datetime
+from pathlib import Path
 from routes.util import split_dataset
+from models.pose_estimation.tennis_analyzer import TennisPlayerAnalyzer
 
 annotation_router = Blueprint("annotation", __name__)
 
 # Data directory structure
 DATA_DIR = "data"
 ANNOTATIONS_DIR = os.path.join(DATA_DIR, "annotations")
+PREDICTIONS_DIR = os.path.join(DATA_DIR, "pose_coordinates")
+RAW_FRAMES_DIR = os.path.join(DATA_DIR, "raw_frames")
+POSE_COORDINATES_DIR = os.path.join(DATA_DIR, "pose_coordinates")
+POSE_FRAMES_DIR = os.path.join(DATA_DIR, "pose_frames")
+
 os.makedirs(ANNOTATIONS_DIR, exist_ok=True)
 
 def get_annotation_path(video_id):
     """Get path for video's annotation file"""
     return os.path.join(ANNOTATIONS_DIR, f"{video_id}_coco_annotations.json")
+
+def get_prediction_path(video_id):
+    """Get path for video's prediction file"""
+    return os.path.join(PREDICTIONS_DIR, f"{video_id}_pose.json")
+
+def parse_image_url(image_url):
+    """Get video ID from image URL"""
+    data = image_url.split("/")
+    video_id = data[-2].split(".")[0]    
+    frame_number = data[-1].split("_")[0]
+    return video_id, frame_number
+
 
 def initialize_annotation_file(video_id):
     """Create empty annotation file if not exists"""
@@ -95,5 +115,71 @@ def get_annotations_rest(video_id):
         return jsonify({"error": "Annotations not found"}), 404
     
     with open(annotation_file) as f:
-        annotations = json.load(f)
+        annotations = json.load(f)    
     return jsonify(annotations)
+
+@annotation_router.route("/get-bbox", methods=['POST'])
+def get_bounding_boxes():
+    """Get bounding boxes for video"""
+    data = request.json    
+    image_url = data.get("image_url")    
+    video_id, frame_number = parse_image_url(image_url)
+    prediction_file = get_prediction_path(video_id)    
+    print("prediction file is:", prediction_file)
+    if not os.path.exists(prediction_file):
+        return jsonify({"error": "Bounding boxes not found"}), 404
+    
+    with open(prediction_file) as f:
+        predictions = json.load(f)            
+    return jsonify(predictions[f"frame_{frame_number}"])
+
+@annotation_router.route("/update", methods=["PATCH"])
+def update_annotations_rest():
+    """Update annotations for specific video"""
+    # NOTE: GroundingDINO Outputs will NOT be changed here
+    #      This is for updating manual annotations AFTER GroundingDINO inference
+    data = request.json
+    image_url = data.get("image_url")
+    video_id, frame_number = parse_image_url(image_url)        
+    bboxes = data.get("bboxes")
+
+    if not bboxes:
+        print("No bounding boxes provided. Is that the intended behaviour?")    
+
+    if not all([video_id, frame_number]):
+        return jsonify({"error": "Missing required fields"}), 400    
+
+    # Get frame_path and json_file
+    raw_frames_path = os.path.join(RAW_FRAMES_DIR, video_id)
+    boxes_path = os.path.join(DATA_DIR, "bbox", f"{video_id}_boxes.json")
+    frame_path = Path(os.path.join(RAW_FRAMES_DIR, video_id, f"{frame_number}.jpg"))
+    pose_coordinates_path = os.path.join(POSE_COORDINATES_DIR, f"{video_id}_pose.json")    
+    output_dir = os.path.join(POSE_FRAMES_DIR, video_id)
+    print(f"Updating new boxes and poses for video {video_id} frame {frame_number}")
+
+    # Modify specific bounding boxes and poses
+    with open(boxes_path, 'r') as f:
+        old_boxes = json.load(f)    
+    new_boxes = old_boxes
+    new_boxes[frame_number] = [
+        {
+            "bbox": [int(b["x"]), int(b["y"]), int(b["width"]), int(b["height"])],
+            "confidence": 1.0, # Manually labelled => 100% confident
+            "label": b["label"]
+        } for b in bboxes
+    ] 
+
+    # Update poses json
+    with open(boxes_path, 'w') as f:
+        json.dump(new_boxes, f, indent=2)
+    analyzer = TennisPlayerAnalyzer(raw_frames_path, boxes_path)    
+    with open(pose_coordinates_path, 'r') as pose_coordinates_json:
+        all_poses = json.load(pose_coordinates_json)
+    frame_with_poses, _, all_poses = analyzer.process_frame(frame_path, all_poses)        
+
+    output_path = os.path.join(output_dir, f"{frame_number}_pred.jpg")
+    cv2.imwrite(str(output_path), frame_with_poses)
+
+    with open(pose_coordinates_path, 'w') as f:
+        json.dump(all_poses, f, indent=2)
+    return jsonify({"message": "Annotations updated successfully"}), 200

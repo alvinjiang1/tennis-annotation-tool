@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import BoundingBoxAnnotator from "./BoundingBoxAnnotator";
 import FrameNavigator from "./FrameNavigator";
 import ShotAnnotator from "./ShotAnnotator";
@@ -9,15 +9,26 @@ interface FrameDisplayProps {
   labelShots: boolean;
 }
 
-const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots}) => {
-  const { frames, loading, error } = useFetchFrames(videoFilename, labelShots);  
+const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots }) => {
+  const { frames, loading, error, refetch } = useFetchFrames(videoFilename, labelShots);  
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnnotating, setIsAnnotating] = useState(false);  
+  const [refresh, setRefresh] = useState(false);
 
   const handlePrevious = () => setCurrentIndex((prev) => Math.max(0, prev - 1));
   const handleNext = () => setCurrentIndex((prev) => Math.min(frames.length - 1, prev + 1));
   const toggleAnnotation = () => setIsAnnotating(!isAnnotating);
   const handleSliderChange = (value: number) => setCurrentIndex(value);
+
+  // Function to trigger a refresh
+  const triggerRefresh = () => {
+    setRefresh((prev) => !prev);
+  };
+
+  useEffect(() => {
+    refetch();
+    setRefresh(false);
+  }, [refresh, refetch]);
 
   return (
     <div className="frame-container flex flex-col items-center p-4">
@@ -51,6 +62,7 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots})
                 imageUrl={frames[currentIndex]}
                 isAnnotating={isAnnotating}
                 setIsAnnotating={setIsAnnotating}
+                triggerRefresh={triggerRefresh} // Pass the triggerRefresh function
               />}
             </div>
           ) : (

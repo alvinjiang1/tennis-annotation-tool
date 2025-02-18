@@ -43,7 +43,7 @@ from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension
 # groundingdino version info
 version = "0.1.0"
 package_name = "groundingdino"
-cwd = os.path.dirname(os.path.abspath(__file__))
+cwd = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "grounding_dino")
 
 
 sha = "Unknown"
@@ -67,7 +67,7 @@ torch_ver = [int(x) for x in torch.__version__.split(".")[:2]]
 
 def get_extensions():
     this_dir = os.path.dirname(os.path.abspath(__file__))
-    extensions_dir = os.path.join(this_dir, "groundingdino", "models", "GroundingDINO", "csrc")
+    extensions_dir = os.path.join(cwd, "groundingdino", "models", "GroundingDINO", "csrc")
 
     main_source = os.path.join(extensions_dir, "vision.cpp")
     sources = glob.glob(os.path.join(extensions_dir, "**", "*.cpp"))
@@ -210,11 +210,13 @@ if __name__ == "__main__":
         license=license,
         install_requires=parse_requirements("requirements.txt"),
         packages=find_packages(
+            where="models/grounding_dino",            
             exclude=(
                 "configs",
                 "tests",
             )
         ),
+        package_dir={"": "models/grounding_dino"},
         ext_modules=get_extensions(),
         cmdclass={"build_ext": torch.utils.cpp_extension.BuildExtension},
     )

@@ -121,12 +121,14 @@ def start_training():
     global training_status
 
     if training_status["running"]:
+        print(f'training already in progress')
         return jsonify({
             "status": "error", 
             "message": "Training is already in progress."
         }), 400
 
     # Get video_id from request
+    print(f"Starting training")
     data = request.json
     video_id = data.get("video_id")
     if not video_id:
@@ -146,11 +148,12 @@ def start_training():
     # Load and validate categories
     with open(annotation_file, 'r') as f:
         categories = json.load(f)["categories"]
-    if len(categories) != 4:
-        return jsonify({
-            "status": "error", 
-            "message": "Must provide exactly 4 player descriptions."
-        }), 400
+    # if len(categories) != 4:
+    #     print(f"Must provide exactly 4 player descriptions.")
+    #     return jsonify({
+    #         "status": "error", 
+    #         "message": "Must provide exactly 4 player descriptions."
+    #     }), 400
 
     # Start training in background
     training_thread = threading.Thread(

@@ -108,6 +108,69 @@ class TennisPlayerAnalyzer:
 
                 cv2.circle(frame, (int(x), int(y)), 4, color, -1)
 
+    def process_frame(self, frame_path, all_poses):
+        """Process a single frame"""
+        frame_number = frame_path.stem.split('/')[-1]
+        frame_number = frame_number.split('.')[0]
+        frame = cv2.imread(str(frame_path))
+        
+        if frame is None:
+            print(f"Error reading frame {frame_path}")
+            return None, None, None
+        
+        frame_with_poses = frame.copy()
+        frame_poses = []
+        # Get predictions for this frame
+        frame_predictions = self.predictions.get(f"{frame_number}", [])
+        if not frame_predictions:
+            print(f"No predictions found for frame {frame_number}")
+            return frame_with_poses, frame_number, all_poses
+        
+        for pred in frame_predictions:
+            try:
+                bbox = pred['bbox']
+                confidence = pred['confidence']
+                label = pred.get('label', 'Player')  # Get label with fallback
+                
+                # Get expanded bbox for pose detection
+                expanded_bbox = self.expand_bbox(bbox)
+                x1, y1, x2, y2 = expanded_bbox
+                
+                # Extract player crop
+                player_crop = frame[y1:y2, x1:x2]
+                if player_crop.size > 0:  # Check if crop is valid
+                    # Get pose keypoints and confidence
+                    pose_results = self.model(player_crop)
+                    crop_keypoints, keypoint_conf = self.process_pose_keypoints(pose_results)
+                    
+                    # Only store if we got valid keypoints
+                    if np.any(crop_keypoints):
+                        # Map keypoints back to original frame coordinates
+                        valid_mask = crop_keypoints[:, 0] != 0
+                        crop_keypoints[valid_mask, 0] += x1
+                        crop_keypoints[valid_mask, 1] += y1
+                        
+                        # Store pose information
+                        pose_info = {
+                            'bbox': bbox,
+                            'bbox_confidence': float(confidence),
+                            'label': label,
+                            'keypoints': crop_keypoints.tolist(),
+                            'keypoint_confidence': keypoint_conf.tolist()
+                        }
+                        frame_poses.append(pose_info)
+                        
+                        # Draw pose and bbox with label
+                        self.draw_pose(frame_with_poses, crop_keypoints, label)
+                        self.draw_bbox(frame_with_poses, bbox, confidence, label)
+            
+            except Exception as e:
+                print(f"Error processing bbox in frame {frame_number}: {str(e)}")
+                continue
+        if frame_poses:
+            all_poses[f"frame_{frame_number}"] = frame_poses        
+        return frame_with_poses, frame_number, all_poses
+
     def process_frames(self, output_dir, rally_id):
         output_dir = Path(output_dir) / rally_id
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -119,69 +182,8 @@ class TennisPlayerAnalyzer:
         processed_frames = []
         all_poses = {}
         
-        for frame_path in frame_files:
-            frame_number = frame_path.stem.split('/')[-1]
-            frame_number = frame_number.split('.')[0]
-            frame = cv2.imread(str(frame_path))
-            
-            if frame is None:
-                continue
-                
-            frame_with_poses = frame.copy()
-            frame_poses = []
-            
-            # Get predictions for this frame
-            frame_predictions = self.predictions.get(f"{frame_number}", [])
-            if not frame_predictions:
-                print(f"No predictions found for frame {frame_number}")
-                continue
-            
-            for pred in frame_predictions:
-                try:
-                    bbox = pred['bbox']
-                    confidence = pred['confidence']
-                    label = pred.get('label', 'Player')  # Get label with fallback
-                    
-                    # Get expanded bbox for pose detection
-                    expanded_bbox = self.expand_bbox(bbox)
-                    x1, y1, x2, y2 = expanded_bbox
-                    
-                    # Extract player crop
-                    player_crop = frame[y1:y2, x1:x2]
-                    if player_crop.size > 0:  # Check if crop is valid
-                        # Get pose keypoints and confidence
-                        pose_results = self.model(player_crop)
-                        crop_keypoints, keypoint_conf = self.process_pose_keypoints(pose_results)
-                        
-                        # Only store if we got valid keypoints
-                        if np.any(crop_keypoints):
-                            # Map keypoints back to original frame coordinates
-                            valid_mask = crop_keypoints[:, 0] != 0
-                            crop_keypoints[valid_mask, 0] += x1
-                            crop_keypoints[valid_mask, 1] += y1
-                            
-                            # Store pose information
-                            pose_info = {
-                                'bbox': bbox,
-                                'bbox_confidence': float(confidence),
-                                'label': label,
-                                'keypoints': crop_keypoints.tolist(),
-                                'keypoint_confidence': keypoint_conf.tolist()
-                            }
-                            frame_poses.append(pose_info)
-                            
-                            # Draw pose and bbox with label
-                            self.draw_pose(frame_with_poses, crop_keypoints, label)
-                            self.draw_bbox(frame_with_poses, bbox, confidence, label)
-                
-                except Exception as e:
-                    print(f"Error processing bbox in frame {frame_number}: {str(e)}")
-                    continue
-            
-            # Store poses for this frame
-            if frame_poses:  # Only store if we have valid poses
-                all_poses[f"frame_{frame_number}"] = frame_poses
-            
+        for frame_path in frame_files:                                                                        
+            frame_with_poses, frame_number, all_poses = self.process_frame(frame_path, all_poses)
             # Save processed frame
             output_path = output_dir / f"{frame_number}_pred.jpg"
             cv2.imwrite(str(output_path), frame_with_poses)

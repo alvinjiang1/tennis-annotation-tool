@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 const backendUrl = "http://localhost:5000";
 
@@ -55,47 +55,47 @@ export default function useFetchFrames(videoId: string, labelShots: boolean) {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
+    const fetchFrames = useCallback(async () => {
         if (!videoId) return;
 
-        const fetchFrames = async () => {
-            try {
-                setLoading(true);
-                setError(null);
-                
-                const endpoint = labelShots 
-                    ? `${backendUrl}/api/inference/frames/${videoId}`
-                    : `${backendUrl}/api/video/frames/${videoId}`;
-                
-                const response = await fetch(endpoint);
-                const data: FrameResponse = await response.json();
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const endpoint = labelShots 
+                ? `${backendUrl}/api/inference/frames/${videoId}`
+                : `${backendUrl}/api/video/frames/${videoId}`;
+            
+            const response = await fetch(endpoint);
+            const data: FrameResponse = await response.json();
 
-                if (response.ok) {
-                    const frameUrls = data.frames.map((frame: string) => {
-                        const baseEndpoint = labelShots
-                            ? `${backendUrl}/api/inference/frame/${videoId}`
-                            : `${backendUrl}/api/video/frame/${videoId}`;
-                        return `${baseEndpoint}/${frame}`;
-                    });
-                    
-                    setFrames(frameUrls);
-                } else {
-                    throw new Error(data.error || "Failed to fetch frames");
-                }
-            } catch (err) {
-                const errorMessage = err instanceof Error ? err.message : "Failed to fetch frames";
-                console.error("Failed to fetch frames:", err);
-                setError(errorMessage);
-                setFrames([]);
-            } finally {
-                setLoading(false);
+            if (response.ok) {
+                const frameUrls = data.frames.map((frame: string) => {
+                    const baseEndpoint = labelShots
+                        ? `${backendUrl}/api/inference/frame/${videoId}`
+                        : `${backendUrl}/api/video/frame/${videoId}`;
+                    return `${baseEndpoint}/${frame}`;
+                });
+                
+                setFrames(frameUrls);
+            } else {
+                throw new Error(data.error || "Failed to fetch frames");
             }
-        };
-
-        fetchFrames();
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Failed to fetch frames";
+            console.error("Failed to fetch frames:", err);
+            setError(errorMessage);
+            setFrames([]);
+        } finally {
+            setLoading(false);
+        }
     }, [videoId, labelShots]);
 
-    return { frames, loading, error };
+    useEffect(() => {
+        fetchFrames();
+    }, [fetchFrames]);
+
+    return { frames, loading, error, refetch: fetchFrames };
 }
 
 export const checkVideoReadiness = async (videoId: string): Promise<{
