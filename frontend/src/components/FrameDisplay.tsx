@@ -11,9 +11,12 @@ interface FrameDisplayProps {
 
 const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots }) => {
   const { frames, loading, error, refetch } = useFetchFrames(videoFilename, labelShots);  
+  const [rallyFrames, setRallyFrames] = useState<{[key: string]: string[]}>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnnotating, setIsAnnotating] = useState(false);  
   const [refresh, setRefresh] = useState(false);
+  const [currentRallyId, setCurrentRallyId] = useState<string>("None");    
+  const [labelRally, setLabelRally] = useState(false);  
 
   const handlePrevious = () => setCurrentIndex((prev) => Math.max(0, prev - 1));
   const handleNext = () => setCurrentIndex((prev) => Math.min(frames.length - 1, prev + 1));
@@ -63,6 +66,12 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots }
                 isAnnotating={isAnnotating}
                 setIsAnnotating={setIsAnnotating}
                 triggerRefresh={triggerRefresh} // Pass the triggerRefresh function
+                rallyFrames={rallyFrames}
+                setRallyFrames={setRallyFrames}
+                currentRallyId={currentRallyId}
+                setCurrentRallyId={setCurrentRallyId}
+                labelRally={labelRally}
+                setLabelRally={setLabelRally}
               />}
             </div>
           ) : (

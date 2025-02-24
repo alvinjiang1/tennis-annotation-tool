@@ -1,8 +1,5 @@
 import { BoundingBox } from './BoundingBoxAnnotator'
 
-interface HittingMoments {
-}
-
 export const fetchBoundingBoxes = async (imageUrl: string, setBoundingBoxes: (boxes: BoundingBox[]) => void) => {
   try {
     const response = await fetch("http://localhost:5000/api/annotation/get-bbox", {
@@ -43,12 +40,12 @@ export const saveBoundingBoxes = async (imageUrl: string, boundingBoxes: Boundin
   }
 };
 
-export const saveHittingMoments = async (selectedRallyFrames: HittingMoments) => {
+export const saveHittingMoments = async (selectedRallyFrames: { [key: string]: string[] }) => {
   try {
-    await fetch("http://localhost:5000/api/annotations/save-hitting-moments", {
+    await fetch("http://localhost:5000/api/annotation/save-hitting-moments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hittingMoments: selectedRallyFrames }),
+      body: JSON.stringify({ hitting_moments: selectedRallyFrames }),
     });
     alert("Hitting Moments Saved Successfully!");
   } catch (error) {

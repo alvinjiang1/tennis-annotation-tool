@@ -1,12 +1,19 @@
 import { BoundingBox } from "./BoundingBoxAnnotator";
 import { useEffect, useRef, useState } from "react";
-import { fetchBoundingBoxes, saveBoundingBoxes, drawBoundingBoxes, saveHittingMoments } from "./annotationUtils";
+import { fetchBoundingBoxes, saveBoundingBoxes, drawBoundingBoxes } from "./annotationUtils";
+import { RallyFrameSelector } from "./RallyFrameSelector";
 
 interface ShotAnnotatorProps {
   imageUrl: string;  
   isAnnotating: boolean;
   setIsAnnotating: (isAnnotating: boolean) => void;
-  triggerRefresh: () => void; // Add triggerRefresh prop
+  triggerRefresh: () => void;
+  rallyFrames: {[key: string]: string[]};
+  setRallyFrames: (frames: (prev: { [key: string]: string[] }) => { [key: string]: string[] }) => void;
+  currentRallyId: string;
+  setCurrentRallyId: (id: (prev: string) => string) => void;
+  labelRally: boolean;
+  setLabelRally: (label: boolean) => void;
 }
 
 const ShotAnnotator: React.FC<ShotAnnotatorProps> = ({
@@ -14,12 +21,16 @@ const ShotAnnotator: React.FC<ShotAnnotatorProps> = ({
   isAnnotating,
   setIsAnnotating,
   triggerRefresh, // Destructure triggerRefresh
+  rallyFrames,
+  setRallyFrames,
+  currentRallyId,
+  setCurrentRallyId,
+  labelRally,
+  setLabelRally
+
 }) => {
-  const [boundingBoxes, setBoundingBoxes] = useState<BoundingBox[]>([]);
-  const [selectedRallyFrames, setSelectedRallyFrames] = useState<{ [key: string]: string[] }>({});
+  const [boundingBoxes, setBoundingBoxes] = useState<BoundingBox[]>([]);  
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const frameNumber = "0";  
-  const rallyId = 0;
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
@@ -115,7 +126,7 @@ const ShotAnnotator: React.FC<ShotAnnotatorProps> = ({
     }
     
     try {
-        await saveBoundingBoxes(imageUrl, boundingBoxes);
+        await saveBoundingBoxes(imageUrl, boundingBoxes);        
         setIsAnnotating(false);
         triggerRefresh(); // Trigger refresh after saving
     } catch (error) {
@@ -124,28 +135,9 @@ const ShotAnnotator: React.FC<ShotAnnotatorProps> = ({
     }
   };
 
-  const handleFrameSelection = () => {
-    setSelectedRallyFrames((prev) => {
-      const updatedFrames = { ...prev };
-      if (!updatedFrames[rallyId]) {
-        updatedFrames[rallyId] = [];
-      }
-      if (updatedFrames[rallyId].includes(frameNumber)) {
-        updatedFrames[rallyId] = updatedFrames[rallyId].filter((f) => f !== frameNumber);
-      } else {
-        updatedFrames[rallyId].push(frameNumber);
-      }
-      return updatedFrames;
-    });
-  };
-
   return (
     <div className="p-4">
-      <h3 className="text-lg font-bold">Shot Annotation</h3>
-      <button onClick={handleFrameSelection} className="btn btn-secondary">
-        {selectedRallyFrames[rallyId]?.includes(frameNumber) ? "Deselect Frame" : "Select Frame"}
-      </button>
-
+      <h3 className="text-lg font-bold">Shot Annotation</h3>    
       <div className="relative w-full flex justify-center">
         <canvas
           ref={canvasRef}
@@ -158,7 +150,7 @@ const ShotAnnotator: React.FC<ShotAnnotatorProps> = ({
 
       <div className="flex flex-col mt-2">
         {boundingBoxes.map((box, index) => (
-          <div key={index} className="flex gap-2">
+          <div key={index} className="justify-center flex gap-2">
             <input
               type="text"
               value={box.label}
@@ -175,10 +167,15 @@ const ShotAnnotator: React.FC<ShotAnnotatorProps> = ({
         <button className="btn btn-primary" onClick={handleSave}>
           Save Bounding Boxes
         </button>
-        <button className="btn btn-primary" onClick={() => saveHittingMoments(selectedRallyFrames)}>
-          Save Hitting Moments
-        </button>
       </div>
+      <RallyFrameSelector 
+      frameNumber={imageUrl} 
+      rallyFrames={rallyFrames} 
+      setRallyFrames={setRallyFrames} 
+      currentRallyId={currentRallyId}
+      setCurrentRallyId={setCurrentRallyId}
+      labelRally={labelRally}
+      setLabelRally={setLabelRally}/>
     </div>
   );
 };

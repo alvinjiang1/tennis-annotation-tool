@@ -16,15 +16,15 @@ with open(prompt_path, 'r') as f:
 images = [PIL.Image.open(os.path.join(folder_path, f)) for f in os.listdir(folder_path) if f.endswith('.jpg')]
 
 client = genai.Client(api_key=GEMINI_API_KEY)
-# response = client.models.generate_content(
-#     model="gemini-2.0-flash",
-#     contents=[prompt] + images,)
-
-image = PIL.Image.open(os.path.join(folder_path, "0126_pred.jpg"))
-
 response = client.models.generate_content(
     model="gemini-2.0-flash",
-    contents=[image, "The tennis players are highlighted in bounding boxes. Describe their physical characteristics and their position on the tennis court (Near/Far, Ad/Deuce)"],)
+    contents=[prompt] + images,)
+
+# image = PIL.Image.open(os.path.join(folder_path, "0126_pred.jpg"))
+
+# response = client.models.generate_content(
+#     model="gemini-2.0-flash",
+#     contents=[image, "The tennis players are highlighted in bounding boxes. Describe their physical characteristics and their position on the tennis court (Near/Far, Ad/Deuce)"],)
 
 # Assume response is in the format: 
 # ```json

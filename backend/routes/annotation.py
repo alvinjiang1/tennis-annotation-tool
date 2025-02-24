@@ -183,3 +183,11 @@ def update_annotations_rest():
     with open(pose_coordinates_path, 'w') as f:
         json.dump(all_poses, f, indent=2)
     return jsonify({"message": "Annotations updated successfully"}), 200
+
+@annotation_router.route("/save-hitting-moments", methods=["POST"])
+def save_hitting_moments():
+    """Save hitting moments for specific video"""
+    data = request.json    
+    hitting_moments = data.get("hitting_moments")
+    print(hitting_moments)
+    return jsonify({"message": "Hitting moments saved successfully"}), 200
