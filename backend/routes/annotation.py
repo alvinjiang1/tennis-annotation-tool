@@ -16,6 +16,7 @@ PREDICTIONS_DIR = os.path.join(DATA_DIR, "pose_coordinates")
 RAW_FRAMES_DIR = os.path.join(DATA_DIR, "raw_frames")
 POSE_COORDINATES_DIR = os.path.join(DATA_DIR, "pose_coordinates")
 POSE_FRAMES_DIR = os.path.join(DATA_DIR, "pose_frames")
+RALLIES_DIR = os.path.join(DATA_DIR, "rallies")
 
 os.makedirs(ANNOTATIONS_DIR, exist_ok=True)
 
@@ -26,6 +27,10 @@ def get_annotation_path(video_id):
 def get_prediction_path(video_id):
     """Get path for video's prediction file"""
     return os.path.join(PREDICTIONS_DIR, f"{video_id}_pose.json")
+
+def get_rallies_path(video_id):
+    """Get path for video's prediction file"""
+    return os.path.join(RALLIES_DIR, f"{video_id}_rallies.json")
 
 def parse_image_url(image_url):
     """Get video ID from image URL"""
@@ -42,6 +47,14 @@ def initialize_annotation_file(video_id):
         with open(annotation_file, "w") as f:
             json.dump({"images": [], "annotations": [], "categories": []}, f)
     return annotation_file
+
+def initialize_rally_file(video_id):
+    """Create empty rallies file if not exists"""
+    rallies_file = get_rallies_path(video_id)
+    if not os.path.exists(rallies_file):
+        with open(rallies_file, "w") as f:
+            json.dump({}, f)
+    return rallies_file
 
 @annotation_router.route("/save", methods=["POST"])
 def save_annotation_rest():
@@ -188,6 +201,17 @@ def update_annotations_rest():
 def save_hitting_moments():
     """Save hitting moments for specific video"""
     data = request.json    
-    hitting_moments = data.get("hitting_moments")
-    print(hitting_moments)
+    hitting_moments = data.get("hitting_moments")    
+    rallies = {}
+    if not hitting_moments['rally_1']:
+        return jsonify({"error": "No hitting moments found"}), 400
+    video_id, _ = parse_image_url(hitting_moments['rally_1'][0])
+    rallies_filepath = get_rallies_path(video_id)
+
+    for rally in hitting_moments:
+        image_url_list = hitting_moments[rally]
+        rallies[rally] = [parse_image_url(image_url)[1] for image_url in image_url_list]
+        
+    with open(rallies_filepath, 'w') as f:
+        json.dump(rallies, f, indent=2)
     return jsonify({"message": "Hitting moments saved successfully"}), 200

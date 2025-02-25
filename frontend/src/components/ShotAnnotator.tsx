@@ -2,6 +2,7 @@ import { BoundingBox } from "./BoundingBoxAnnotator";
 import { useEffect, useRef, useState } from "react";
 import { fetchBoundingBoxes, saveBoundingBoxes, drawBoundingBoxes } from "./annotationUtils";
 import { RallyFrameSelector } from "./RallyFrameSelector";
+import { ShotLabelGenerator } from "./ShotLabelGenerator";
 
 interface ShotAnnotatorProps {
   imageUrl: string;  
@@ -176,6 +177,7 @@ const ShotAnnotator: React.FC<ShotAnnotatorProps> = ({
       setCurrentRallyId={setCurrentRallyId}
       labelRally={labelRally}
       setLabelRally={setLabelRally}/>
+      <ShotLabelGenerator imageUrl={imageUrl}/>
     </div>
   );
 };

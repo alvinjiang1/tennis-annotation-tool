@@ -7,6 +7,8 @@ import json
 import subprocess
 from multiprocessing import Pool
 from models.pose_estimation.tennis_analyzer import TennisPlayerAnalyzer
+from models.shot_labelling.gemini import predict_rallies_gemini
+from routes.annotation import parse_image_url
 
 # Blueprint for inference routes
 inference_router = Blueprint("inference", __name__)
@@ -177,3 +179,10 @@ def serve_frame(video_id, filename):
         return jsonify({"error": "Prediction file does not exist"}), 404
         
     return send_from_directory(predictions_dir, filename)
+
+@inference_router.route("/predict", methods=["POST"])
+def predict_rallies():
+    data = request.json
+    video_id, _ = parse_image_url(data['image_url'])
+    print(f"Starting shot label generation on: {video_id}")
+    return predict_rallies_gemini(video_id)

@@ -143,26 +143,27 @@ class TennisPlayerAnalyzer:
                     pose_results = self.model(player_crop)
                     crop_keypoints, keypoint_conf = self.process_pose_keypoints(pose_results)
                     
-                    # Only store if we got valid keypoints
+                    # Only store if we got valid keypoints                    
+                    # if np.any(crop_keypoints): # Draw pose and bboxes anyway
+                    # Map keypoints back to original frame coordinates
+                    valid_mask = crop_keypoints[:, 0] != 0
+                    crop_keypoints[valid_mask, 0] += x1
+                    crop_keypoints[valid_mask, 1] += y1
+                    
+                    # Store pose information
+                    pose_info = {
+                        'bbox': bbox,
+                        'bbox_confidence': float(confidence),
+                        'label': label,
+                        'keypoints': crop_keypoints.tolist(),
+                        'keypoint_confidence': keypoint_conf.tolist()
+                    }
+                    frame_poses.append(pose_info)
+                    
+                    # Draw pose and bbox with label
                     if np.any(crop_keypoints):
-                        # Map keypoints back to original frame coordinates
-                        valid_mask = crop_keypoints[:, 0] != 0
-                        crop_keypoints[valid_mask, 0] += x1
-                        crop_keypoints[valid_mask, 1] += y1
-                        
-                        # Store pose information
-                        pose_info = {
-                            'bbox': bbox,
-                            'bbox_confidence': float(confidence),
-                            'label': label,
-                            'keypoints': crop_keypoints.tolist(),
-                            'keypoint_confidence': keypoint_conf.tolist()
-                        }
-                        frame_poses.append(pose_info)
-                        
-                        # Draw pose and bbox with label
                         self.draw_pose(frame_with_poses, crop_keypoints, label)
-                        self.draw_bbox(frame_with_poses, bbox, confidence, label)
+                    self.draw_bbox(frame_with_poses, bbox, confidence, label)
             
             except Exception as e:
                 print(f"Error processing bbox in frame {frame_number}: {str(e)}")

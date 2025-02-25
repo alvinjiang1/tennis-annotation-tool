@@ -1,12 +1,12 @@
-### LLM Prompt: Automated Tennis Rally Analysis (JSON Output)
-
 **Objective:**  
 You are an AI assistant tasked with analyzing a sequence of images representing the **hitting moments** of a single **tennis rally**. Your goal is to infer key shot characteristics and structure the analysis in a **JSON format**.
 
 ---
 
 ### Inputs:  
-You will be provided with **n ordered images** (sorted chronologically), where each image captures the moment a player is hitting the ball. The last image in the sequence represents the **final shot of the rally**.
+You will be provided with **n images** (sorted chronologically), where each image captures the moment a player is hitting the ball. The last image in the sequence represents the final outcome of the rally.
+
+You are also provided with the bounding box information and keypoints identified with YOLO-pose of all four players on the tennis court at each frame.
 
 Each player is identified by their **clothing, position (near or far court), handedness (right-handed or left-handed), and whether they are in the ad or deuce court**.
 
@@ -54,38 +54,34 @@ Each player is identified by their **clothing, position (near or far court), han
 - The **last image in the sequence always represents the last shot of the rally**.
 - The rally ends with **either a winner (win) or an error (err)**.
 - The outcome should be determined based on **where the ball is located**:
-  - If the ball is **out** or **in the net**, it is an **error (err)**.
-  - If the opponent **cannot reach the ball**, it is a **winner (win)**.
+  - If the ball is on the side of the tennis court of the last player who hit it, it is an **error (err)**.
+  - If the ball is on the opposite side of the tennis court of the last player who hit it AND it landed in the court (not out of bounds), it is a **winner**.
 
 ---
 
 ### JSON Output Format Example
 The analysis should return a JSON structure formatted as follows:
 
-{
-    "fps": 29.0,
-    "height": 720,
-    "width": 1280,
-    "num_frames": 44,
-    "video": "miami-2024-sf-bopanna-ebden-granollers-zeballos_13209_13253",
-    "far_name": "Granollers & Zeballos",
-    "far_hand": "RH & LH",
-    "near_name": "Bopanna & Ebden",
-    "near_hand": "RH & RH",
-    "events": [
-        {
-            "player": "P1",
-            "frame": 15,
-            "label": "near_deuce_serve_-_-_W_in",
-            "outcome": "in"
-        },
-        {
-            "player": "P3",
-            "frame": 44,
-            "label": "far_deuce_return_bh_gs_CC_err",
-            "outcome": "err"
-        }
-    ]
+{ "player_descriptons": {
+      "p1": "Salisbury (White shirt)",
+      "p2": "Ram (Red shirt)",
+      "p3": "Venus (grey shirt, blue pants)",
+      "p4": "Puetz (Yellow shirt)"
+  },
+  "events": [
+      {
+          "player": "p1",
+          "frame": 15,
+          "label": "near_deuce_serve_-_-_W_in",
+          "outcome": "in"
+      },
+      {
+          "player": "p3",
+          "frame": 44,
+          "label": "far_deuce_return_bh_gs_CC_err",
+          "outcome": "err"
+      }
+  ]
 }
 
 ---
