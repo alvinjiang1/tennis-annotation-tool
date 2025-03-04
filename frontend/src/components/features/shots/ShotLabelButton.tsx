@@ -1,4 +1,4 @@
-import { SHOT_LABELLING } from "../routes/useToolbarTab";
+import { SHOT_LABELLING } from "../../../routes/useToolbarTab";
 
 type ShotLabelButtonProps = {
   setToolbarTab: (tabIndex: number) => void;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getInferingStatus } from "./api";
+import { getInferingStatus } from "../services/api";
 
 const TrainingStatus: React.FC = () => {
   const [status, setStatus] = useState<string | null>(null);

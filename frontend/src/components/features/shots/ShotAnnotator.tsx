@@ -1,8 +1,8 @@
-import { BoundingBox } from "./BoundingBoxAnnotator";
+import { BoundingBox } from "../annotation/BoundingBoxAnnotator";
 import { useEffect, useRef, useState } from "react";
-import { fetchBoundingBoxes, saveBoundingBoxes, drawBoundingBoxes } from "./annotationUtils";
-import { RallyFrameSelector } from "./RallyFrameSelector";
-import { ShotLabelGenerator } from "./ShotLabelGenerator";
+import { fetchBoundingBoxes, saveBoundingBoxes, drawBoundingBoxes } from "../../annotationUtils";
+import { RallyFrameSelector } from "../../RallyFrameSelector";
+import { ShotLabelGenerator } from "../../ShotLabelGenerator";
 
 interface ShotAnnotatorProps {
   imageUrl: string;  

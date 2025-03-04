@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { startTraining, getTrainingStatus, checkVideoReadiness } from './api';
+import { startTraining, getTrainingStatus, checkVideoReadiness } from '../../../services/api';
 
 interface Video {
   id: string;

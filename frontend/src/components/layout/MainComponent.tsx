@@ -1,7 +1,7 @@
-import AnnotationView from './AnnotationView';
-import TrainingView from './TrainingView';
-import ShotLabellingView from './ShotLabellingView';
-import { ANNOTATION, TRAINING, SHOT_LABELLING } from '../routes/useToolbarTab';
+import AnnotationView from '../features/annotation/AnnotationView';
+import TrainingView from '../features/training/TrainingView';
+import ShotLabellingView from '../features/shots/ShotLabellingView';
+import { ANNOTATION, TRAINING, SHOT_LABELLING } from '../../routes/useToolbarTab';
 
 type MainComponentProps = {
   mode: number;

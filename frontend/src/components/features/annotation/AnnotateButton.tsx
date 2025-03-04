@@ -1,4 +1,4 @@
-import { ANNOTATION } from "../routes/useToolbarTab";
+import { ANNOTATION } from "../../../routes/useToolbarTab";
 
 type AnnotateButtonProps = {
   setToolbarTab: (tabIndex: number) => void;

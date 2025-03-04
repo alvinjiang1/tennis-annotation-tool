@@ -1,4 +1,4 @@
-import { TRAINING } from "../routes/useToolbarTab";
+import { TRAINING } from "../../../routes/useToolbarTab";
 
 type TrainingButtonProps = {
   setToolbarTab: (tabIndex: number) => void;

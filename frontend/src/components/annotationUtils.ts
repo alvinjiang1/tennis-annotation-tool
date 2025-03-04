@@ -1,4 +1,4 @@
-import { BoundingBox } from './BoundingBoxAnnotator'
+import { BoundingBox } from './features/annotation/BoundingBoxAnnotator'
 
 export const fetchBoundingBoxes = async (imageUrl: string, setBoundingBoxes: (boxes: BoundingBox[]) => void) => {
   try {

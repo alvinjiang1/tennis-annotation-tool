@@ -5,8 +5,14 @@ from google.genai import types
 import json
 import os
 import PIL.Image
+from dotenv import load_dotenv
 
+load_dotenv()
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+
+if not GEMINI_API_KEY:
+    print("GEMINI_API_KEY not found in environment variables")
+
 DATA_DIR = "data"
 RALLIES_PATH = os.path.join(DATA_DIR, "rallies")
 OUTPUT_PATH = os.path.join(DATA_DIR, "generated_labels")

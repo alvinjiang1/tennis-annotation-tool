@@ -1,7 +1,7 @@
 import { useState } from "react";
-import UploadedVideos from "./UploadedVideos"
-import FrameDisplay from "./FrameDisplay";
-import InferenceStatus from "./InferenceStatus";
+import UploadedVideos from "../video/UploadedVideos"
+import FrameDisplay from "../frame/FrameDisplay";
+import InferenceStatus from "../../InferenceStatus";
 
 export default function ShotLabellingView () {
     const backendUrl = "http://localhost:5000"    
