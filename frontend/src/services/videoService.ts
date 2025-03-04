@@ -12,6 +12,8 @@ interface VideoListResponse {
 
 interface FramesResponse {
   frames: string[];
+  video_id: string;
+  frame_count: number;
 }
 
 export const videoService = {
@@ -43,8 +45,11 @@ export const videoService = {
   
   async getVideoFrames(videoFilename: string): Promise<string[]> {
     try {
-      const data = await apiClient.get<FramesResponse>(`/api/video/frames?filename=${videoFilename}`);
-      return data.frames.map(frame => `${API_BASE_URL}/api/video/frame/${frame}`);
+      // Use the correct URL format with the video ID in the path
+      const data = await apiClient.get<FramesResponse>(`/api/video/frames/${videoFilename}`);
+      
+      // Map the frames to their full URLs
+      return data.frames.map(frame => `${API_BASE_URL}/api/video/frame/${data.video_id}/${frame}`);
     } catch (error) {
       console.error('Error fetching video frames:', error);
       return [];

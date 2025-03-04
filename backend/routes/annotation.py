@@ -215,3 +215,150 @@ def save_hitting_moments():
     with open(rallies_filepath, 'w') as f:
         json.dump(rallies, f, indent=2)
     return jsonify({"message": "Hitting moments saved successfully"}), 200
+
+@annotation_router.route("/save-categories", methods=["POST"])
+def save_categories():
+    """Save player categories for a specific video"""
+    data = request.json
+    video_id = data.get("video_id")
+    categories = data.get("categories", [])
+    
+    if not video_id or not categories:
+        return jsonify({"error": "Missing required fields"}), 400
+    
+    # Get the annotations file path
+    annotation_file = get_annotation_path(video_id)
+    
+    try:
+        # Create or load existing annotation file
+        if os.path.exists(annotation_file):
+            with open(annotation_file, "r") as f:
+                coco_data = json.load(f)
+        else:
+            coco_data = {
+                "images": [],
+                "annotations": [],
+                "categories": []
+            }
+        
+        # Update categories
+        coco_data["categories"] = categories
+        
+        # Save back to file
+        with open(annotation_file, "w") as f:
+            json.dump(coco_data, f, indent=4)
+            
+        return jsonify({"message": "Categories saved successfully"}), 200
+    
+    except Exception as e:
+        print(f"Error saving categories: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@annotation_router.route("/get-frame/<video_id>/<frame_id>", methods=["GET"])
+def get_frame_annotations(video_id, frame_id):
+    """Get annotations for a specific frame"""
+    annotation_file = get_annotation_path(video_id)
+    
+    if not os.path.exists(annotation_file):
+        return jsonify({"error": "Annotations not found"}), 404
+    
+    try:
+        with open(annotation_file, "r") as f:
+            coco_data = json.load(f)
+            
+        # Find the image ID for this frame
+        image_id = None
+        for image in coco_data.get("images", []):
+            if image.get("file_name") == f"{frame_id}.jpg":
+                image_id = image.get("id")
+                break
+                
+        if image_id is None:
+            return jsonify({"annotations": []}), 200
+            
+        # Get annotations for this image ID
+        frame_annotations = [
+            ann for ann in coco_data.get("annotations", [])
+            if ann.get("image_id") == image_id
+        ]
+        
+        return jsonify({
+            "annotations": frame_annotations,
+            "categories": coco_data.get("categories", [])
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting frame annotations: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@annotation_router.route("/save-frame", methods=["POST"])
+def save_frame_annotations():
+    """Save annotations for a specific frame"""
+    data = request.json
+    video_id = data.get("video_id")
+    frame_id = data.get("frame_id")
+    annotations = data.get("annotations", [])
+    width = data.get("width")
+    height = data.get("height")
+    
+    if not all([video_id, frame_id, width, height]):
+        return jsonify({"error": "Missing required fields"}), 400
+        
+    annotation_file = get_annotation_path(video_id)
+    
+    try:
+        # Create or load existing annotation file
+        if os.path.exists(annotation_file):
+            with open(annotation_file, "r") as f:
+                coco_data = json.load(f)
+        else:
+            coco_data = {
+                "images": [],
+                "annotations": [],
+                "categories": []
+            }
+            
+        # Check if this image is already in the images list
+        image_exists = False
+        image_id = None
+        for image in coco_data.get("images", []):
+            if image.get("file_name") == f"{frame_id}.jpg":
+                image_exists = True
+                image_id = image.get("id")
+                break
+                
+        # If not, add it
+        if not image_exists:
+            image_id = int(datetime.now().timestamp())
+            coco_data["images"].append({
+                "id": image_id,
+                "file_name": f"{frame_id}.jpg",
+                "width": width,
+                "height": height
+            })
+            
+        # Remove existing annotations for this image
+        coco_data["annotations"] = [
+            ann for ann in coco_data.get("annotations", [])
+            if ann.get("image_id") != image_id
+        ]
+        
+        # Add the new annotations for this image
+        next_ann_id = 1
+        if coco_data["annotations"]:
+            next_ann_id = max(ann.get("id", 0) for ann in coco_data["annotations"]) + 1
+            
+        for i, ann in enumerate(annotations):
+            ann["id"] = next_ann_id + i
+            ann["image_id"] = image_id
+            coco_data["annotations"].append(ann)
+            
+        # Save back to file
+        with open(annotation_file, "w") as f:
+            json.dump(coco_data, f, indent=4)
+            
+        return jsonify({"message": "Frame annotations saved successfully"}), 200
+        
+    except Exception as e:
+        print(f"Error saving frame annotations: {e}")
+        return jsonify({"error": str(e)}), 500

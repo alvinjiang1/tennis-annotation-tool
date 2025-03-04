@@ -6,6 +6,7 @@ interface FrameNavigatorProps {
   onNext: () => void;
   onToggleAnnotation: () => void;
   onSliderChange: (value: number) => void;
+  disableAnnotation?: boolean; // New prop to disable annotation button
 }
 
 const FrameNavigator: React.FC<FrameNavigatorProps> = ({
@@ -16,9 +17,10 @@ const FrameNavigator: React.FC<FrameNavigatorProps> = ({
   onNext,
   onToggleAnnotation,
   onSliderChange,
+  disableAnnotation = false,
 }) => {
   return (
-    <div className="flex flex-col gap-4 mt-2">
+    <div className="flex flex-col gap-4 mt-4">
       <div className="flex justify-between">
         {/* Previous Button */}
         <button
@@ -32,9 +34,11 @@ const FrameNavigator: React.FC<FrameNavigatorProps> = ({
         {/* Annotation Toggle Button */}
         <button
           onClick={onToggleAnnotation}
-          className={`btn ${isAnnotating ? "btn-accent" : "btn-primary"}`}
+          className={`btn ${isAnnotating ? "btn-error" : "btn-primary"}`}
+          disabled={disableAnnotation} // Disable if player descriptions aren't complete
+          title={disableAnnotation ? "Complete player descriptions first" : ""}
         >
-          {isAnnotating ? "Cancel Annotation" : "Annotate"}
+          {isAnnotating ? "Cancel Annotation" : "Start Annotating"}
         </button>
 
         {/* Next Button */}

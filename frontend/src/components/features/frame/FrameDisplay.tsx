@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
 import useFetchFrames from "../../../hooks/useFrames";
+import BoundingBoxAnnotator from "../annotation/BoundingBoxAnnotator";
+import { useToast } from "../../../hooks";
 
 interface FrameDisplayProps {
   videoFilename: string;
-  labelShots: boolean;
+  labelShots?: boolean;
 }
 
-const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots }) => {
-  const { frames, loading, error } = useFetchFrames(videoFilename, labelShots);  
+const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots = false }) => {
+  const { frames, loading, error, reload } = useFetchFrames(videoFilename, labelShots);  
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnnotating, setIsAnnotating] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -15,6 +17,11 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots }
     timestamp: string | null;
     frameNumber: number | null;
   }>({ timestamp: null, frameNumber: null });
+  
+  const { showToast } = useToast();
+  
+  // Extract video ID from filename
+  const videoId = videoFilename.split('.')[0];
   
   // Reset current index when frames change
   useEffect(() => {
@@ -25,7 +32,7 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots }
   useEffect(() => {
     if (frames.length > 0 && currentIndex < frames.length) {
       const frameUrl = frames[currentIndex];
-      const frameNumberMatch = frameUrl.match(/frame_(\d+)/);
+      const frameNumberMatch = frameUrl.match(/(\d+)(_pred)?\.(jpg|png)/);
       const frameNumber = frameNumberMatch ? parseInt(frameNumberMatch[1]) : null;
       
       // Calculate approximate timestamp (assuming 30fps)
@@ -39,7 +46,14 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots }
 
   const handlePrevious = () => setCurrentIndex((prev) => Math.max(0, prev - 1));
   const handleNext = () => setCurrentIndex((prev) => Math.min(frames.length - 1, prev + 1));
-  const toggleAnnotation = () => setIsAnnotating(!isAnnotating);
+  const toggleAnnotation = () => {
+    setIsAnnotating(!isAnnotating);
+    if (isAnnotating) {
+      showToast("Annotation mode disabled", "info");
+    } else {
+      showToast("Annotation mode enabled - select players and draw boxes", "info");
+    }
+  };
   
   const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 0.25, 3));
   const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.25, 0.5));
@@ -52,12 +66,19 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots }
     }
   };
 
+  const handleAnnotationSaved = () => {
+    reload(); // Reload frames to get updated annotations
+    showToast("Annotations saved successfully!", "success");
+  };
+
   return (
     <div className="flex flex-col items-center p-4">
       <div className="card w-full bg-base-100 shadow-lg">
         <div className="card-body">
           <h2 className="card-title flex justify-between">
-            <span>Extracted Frames</span>
+            <span>
+              {labelShots ? "Shot Labeling" : "Frame Annotation"}
+            </span>
             {frameInfo.frameNumber && (
               <div className="badge badge-primary badge-lg">
                 Frame {frameInfo.frameNumber} 
@@ -80,35 +101,52 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots }
             </div>
           ) : frames.length > 0 ? (
             <div className="space-y-4">
-              {/* Frame display area */}
-              <div className="relative flex justify-center overflow-auto">
-                <div style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center', transition: 'transform 0.2s' }}>
-                  <img 
-                    src={frames[currentIndex]} 
-                    alt={`Frame ${currentIndex}`} 
-                    className="max-w-full rounded-lg shadow-lg"
-                  />
-                </div>
-              </div>
+              {isAnnotating ? (
+                // Show the annotation component when in annotation mode
+                <BoundingBoxAnnotator 
+                  imageUrl={frames[currentIndex]} 
+                  videoId={videoId} // Pass the videoId
+                  isAnnotating={isAnnotating}
+                  setIsAnnotating={setIsAnnotating}
+                  onSaveComplete={handleAnnotationSaved} // Changed from onSaved to onSaveComplete
+                />
+              ) : (
+                // Show the regular frame view when not annotating
+                <>
+                  <div className="relative flex justify-center overflow-auto">
+                    <div style={{ 
+                      transform: `scale(${zoomLevel})`, 
+                      transformOrigin: 'center', 
+                      transition: 'transform 0.2s' 
+                    }}>
+                      <img 
+                        src={frames[currentIndex]} 
+                        alt={`Frame ${currentIndex}`} 
+                        className="max-w-full rounded-lg shadow-lg"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Zoom controls */}
+                  <div className="flex justify-center space-x-2">
+                    <button onClick={handleZoomOut} className="btn btn-sm btn-ghost" disabled={zoomLevel <= 0.5}>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+                    <button onClick={handleResetZoom} className="btn btn-sm">
+                      {Math.round(zoomLevel * 100)}%
+                    </button>
+                    <button onClick={handleZoomIn} className="btn btn-sm btn-ghost" disabled={zoomLevel >= 3}>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+                  </div>
+                </>
+              )}
               
-              {/* Zoom controls */}
-              <div className="flex justify-center space-x-2">
-                <button onClick={handleZoomOut} className="btn btn-sm btn-ghost" disabled={zoomLevel <= 0.5}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </button>
-                <button onClick={handleResetZoom} className="btn btn-sm">
-                  {Math.round(zoomLevel * 100)}%
-                </button>
-                <button onClick={handleZoomIn} className="btn btn-sm btn-ghost" disabled={zoomLevel >= 3}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </button>
-              </div>
-              
-              {/* Frame navigation */}
+              {/* Frame navigation controls - always visible */}
               <div className="flex flex-col md:flex-row justify-between gap-4">
                 <div className="btn-group">
                   <button
@@ -149,7 +187,7 @@ const FrameDisplay: React.FC<FrameDisplayProps> = ({ videoFilename, labelShots }
                 </button>
               </div>
               
-              {/* Frame slider */}
+              {/* Frame slider - disabled during annotation */}
               <div className="w-full flex items-center gap-2">
                 <span className="text-sm">{currentIndex + 1}</span>
                 <input
