@@ -124,7 +124,7 @@ def start_training():
     global training_status
 
     if training_status["running"]:
-        print(f'training already in progress')
+        print(f'Training already in progress')
         return jsonify({
             "status": "error", 
             "message": "Training is already in progress."
@@ -151,12 +151,20 @@ def start_training():
     # Load and validate categories
     with open(annotation_file, 'r') as f:
         categories = json.load(f)["categories"]
-    # if len(categories) != 4:
-    #     print(f"Must provide exactly 4 player descriptions.")
-    #     return jsonify({
-    #         "status": "error", 
-    #         "message": "Must provide exactly 4 player descriptions."
-    #     }), 400
+        
+    # Clear the output directory first to ensure clean training
+    video_output_dir = os.path.join(OUTPUT_DIR, video_id)
+    if os.path.exists(video_output_dir):
+        # Remove all files in the directory but keep the directory itself
+        for item in os.listdir(video_output_dir):
+            item_path = os.path.join(video_output_dir, item)
+            if os.path.isfile(item_path):
+                os.remove(item_path)
+            elif os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+    else:
+        # Create the directory if it doesn't exist
+        os.makedirs(video_output_dir, exist_ok=True)
 
     # Start training in background
     training_thread = threading.Thread(
@@ -169,11 +177,3 @@ def start_training():
         "status": "success", 
         "message": "Training started."
     }), 200
-
-@training_router.route("/train/status", methods=["GET"])
-def get_training_status():
-    """Returns the current status of the training process."""
-    return jsonify({
-        "running": training_status["running"],
-        "last_status": training_status["last_status"]
-    })

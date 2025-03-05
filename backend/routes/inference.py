@@ -186,3 +186,42 @@ def predict_rallies():
     video_id, _ = parse_image_url(data['image_url'])
     print(f"Starting shot label generation on: {video_id}")
     return predict_rallies_gemini(video_id)
+
+
+# Add this to backend/routes/inference.py
+
+@inference_router.route("/check-readiness/<video_id>", methods=["GET"])
+def check_inference_readiness(video_id):
+    """Checks if a video is ready for inference by verifying model checkpoint exists."""
+    if not video_id:
+        return jsonify({"error": "video_id is required"}), 400
+        
+    # Get paths for the necessary files
+    model_path = os.path.join(GROUNDING_DINO_OUTPUT_DIR, video_id, "checkpoint0014.pth")
+    labels_path = os.path.join(GROUNDING_DINO_TRAINING_DIR, video_id, "label.json")
+    
+    # Check if required files exist
+    model_exists = os.path.exists(model_path)
+    labels_exist = os.path.exists(labels_path)
+    
+    # Determine overall readiness
+    is_ready = model_exists and labels_exist
+    
+    # Generate appropriate message
+    if is_ready:
+        message = "Model is ready for inference"
+    else:
+        missing = []
+        if not model_exists:
+            missing.append("trained model (checkpoint0014.pth)")
+        if not labels_exist:
+            missing.append("label definitions")
+        
+        message = f"Missing required files: {', '.join(missing)}"
+    
+    return jsonify({
+        "ready": is_ready,
+        "model_exists": model_exists,
+        "labels_exist": labels_exist,
+        "message": message
+    })
