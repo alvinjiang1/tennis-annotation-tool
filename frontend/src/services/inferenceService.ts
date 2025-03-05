@@ -38,7 +38,7 @@ export const inferenceService = {
   async getInferenceFrames(videoFilename: string): Promise<string[]> {
     try {
       const data = await apiClient.get<{ frames: string[] }>(`/api/inference/frames/${videoFilename}`);
-      return data.frames.map(frame => `${API_BASE_URL}/api/inference/frame/${frame}`);
+      return data.frames.map(frame => `${API_BASE_URL}/api/inference/frame/${videoFilename}/${frame}`);
     } catch (error) {
       console.error('Error fetching inference frames:', error);
       return [];
