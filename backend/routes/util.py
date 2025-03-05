@@ -140,6 +140,7 @@ def split_dataset(annotations_path, output_dir, video_id):
     return os.path.join(output_dir, "train/_annotations.coco.json")
 
 def modify_coco_2_odvg(categories, video_id):
+    print("DEBUG: Categories received:", categories)
     fp = os.path.join(GROUNDING_DINO_PATH, "GroundingDINO/tools/coco2odvg.py")
     input_path = os.path.join(GROUNDING_DINO_PATH, "GroundingDINO/input_params")
     TRAIN_FILE = os.path.join("data/grounding_dino_training/", video_id, "train/_annotations.coco.json")
@@ -147,11 +148,15 @@ def modify_coco_2_odvg(categories, video_id):
     # Write odvg
     write_datasets_mixed_odvg(video_id)
 
+    for i, cat in enumerate(categories):
+        print(f"DEBUG: Processing category {i}: {cat}")
+        
     new_id_map = {}
     new_ori_map = {}    
     for cat in categories:
         new_id_map[cat["id"]-1] = cat["id"]
         new_ori_map[str(cat["id"]-1)] = cat["name"]
+        print(f"DEBUG: Added to maps: id-1={cat['id']-1}, id={cat['id']}, name={cat['name']}")
     
     with open(fp, 'r') as file:
         content = file.read()

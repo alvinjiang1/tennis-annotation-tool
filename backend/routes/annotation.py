@@ -125,6 +125,7 @@ def get_annotations_rest(video_id):
     """Get annotations for specific video"""
     annotation_file = get_annotation_path(video_id)
     if not os.path.exists(annotation_file):
+        print("Annotations not found")
         return jsonify({"error": "Annotations not found"}), 404
     
     with open(annotation_file) as f:

@@ -12,6 +12,7 @@ const AnnotationView = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isAnnotating, setIsAnnotating] = useState(false);
   const [playerDescriptionsComplete, setPlayerDescriptionsComplete] = useState(false);
+  const [isEditingPlayerDescriptions, setIsEditingPlayerDescriptions] = useState(false); // New state for editing mode
   const [frames, setFrames] = useState<string[]>([]);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const { showToast } = useToast();
@@ -119,6 +120,7 @@ const AnnotationView = () => {
 
   const handlePlayerDescriptionsComplete = () => {
     setPlayerDescriptionsComplete(true);
+    setIsEditingPlayerDescriptions(false); // Exit edit mode if active
     showToast('Player descriptions saved. Now you can annotate each frame.', 'success');
   };
   
@@ -134,6 +136,10 @@ const AnnotationView = () => {
     }
     
     setIsAnnotating(!isAnnotating);
+  };
+  
+  const handleEditPlayerDescriptions = () => {
+    setIsEditingPlayerDescriptions(true);
   };
   
   const handlePreviousFrame = () => {
@@ -187,61 +193,74 @@ const AnnotationView = () => {
       {uploadedVideo && isFrameExtractionComplete && frames.length > 0 && (
         <div className="card bg-base-100 shadow-xl">
           <div className="card-body">
-            <h2 className="card-title">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              {playerDescriptionsComplete ? "Tennis Player Annotation" : "Define Player Descriptions"}
-            </h2>
-            
-            {/* Frame display section - always visible */}
-            <div className="relative">
-              {isAnnotating ? (
-                // Show annotation interface when in annotation mode
-                <BoundingBoxAnnotator 
-                  imageUrl={frames[currentFrameIndex]}
-                  videoId={videoId}
-                  isAnnotating={isAnnotating}
-                  setIsAnnotating={setIsAnnotating}
-                  onSaveComplete={handleAnnotationComplete}
-                />
-              ) : (
-                // Show just the frame otherwise
-                <div className="flex justify-center">
-                  <img 
-                    src={frames[currentFrameIndex]} 
-                    alt={`Frame ${currentFrameIndex}`}
-                    className="max-w-full rounded-lg shadow-lg"
-                  />
-                </div>
+            <div className="flex justify-between items-center">
+              <h2 className="card-title">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {isEditingPlayerDescriptions 
+                  ? "Edit Player Descriptions" 
+                  : (playerDescriptionsComplete ? "Tennis Player Annotation" : "Define Player Descriptions")}
+              </h2>
+              
+              {/* New: Edit button when descriptions are complete and not currently editing */}
+              {playerDescriptionsComplete && !isEditingPlayerDescriptions && !isAnnotating && (
+                <button 
+                  onClick={handleEditPlayerDescriptions}
+                  className="btn btn-outline btn-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  Edit Player Descriptions
+                </button>
               )}
             </div>
             
-            {/* Frame navigation - always visible */}
-            <FrameNavigator
-              currentIndex={currentFrameIndex}
-              totalFrames={frames.length}
-              isAnnotating={isAnnotating}
-              onPrevious={handlePreviousFrame}
-              onNext={handleNextFrame}
-              onToggleAnnotation={handleToggleAnnotation}
-              onSliderChange={handleFrameSliderChange}
-              disableAnnotation={!playerDescriptionsComplete}
-            />
-            
-            {/* Player descriptions form - conditionally visible */}
-            {!playerDescriptionsComplete && (
-              <div className="mt-6">
-                <div className="divider">Player Descriptions</div>
-                <p className="text-sm text-base-content/70 mb-4">
-                  Browse through the frames above to identify the players, then provide descriptions for all 4 tennis players.
-                  These descriptions will be used across all frames.
-                </p>
-                <PlayerDescriptionForm 
-                  videoId={videoId} 
-                  onComplete={handlePlayerDescriptionsComplete} 
+            {/* Show player descriptions form when editing or when descriptions are not yet complete */}
+            {(isEditingPlayerDescriptions || !playerDescriptionsComplete) ? (
+              <PlayerDescriptionForm 
+                videoId={videoId} 
+                onComplete={handlePlayerDescriptionsComplete}
+                editMode={isEditingPlayerDescriptions} // Pass edit mode flag
+              />
+            ) : (
+              <>
+                {/* Frame display section */}
+                <div className="relative">
+                  {isAnnotating ? (
+                    // Show annotation interface when in annotation mode
+                    <BoundingBoxAnnotator 
+                      imageUrl={frames[currentFrameIndex]}
+                      videoId={videoId}
+                      isAnnotating={isAnnotating}
+                      setIsAnnotating={setIsAnnotating}
+                      onSaveComplete={handleAnnotationComplete}
+                    />
+                  ) : (
+                    // Show just the frame otherwise
+                    <div className="flex justify-center">
+                      <img 
+                        src={frames[currentFrameIndex]} 
+                        alt={`Frame ${currentFrameIndex}`}
+                        className="max-w-full rounded-lg shadow-lg"
+                      />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Frame navigation */}
+                <FrameNavigator
+                  currentIndex={currentFrameIndex}
+                  totalFrames={frames.length}
+                  isAnnotating={isAnnotating}
+                  onPrevious={handlePreviousFrame}
+                  onNext={handleNextFrame}
+                  onToggleAnnotation={handleToggleAnnotation}
+                  onSliderChange={handleFrameSliderChange}
+                  disableAnnotation={!playerDescriptionsComplete}
                 />
-              </div>
+              </>
             )}
           </div>
         </div>

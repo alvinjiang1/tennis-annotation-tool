@@ -9,15 +9,21 @@ interface Player {
 interface PlayerDescriptionFormProps {
   videoId: string;
   onComplete: () => void;
+  editMode?: boolean; // New prop to indicate editing mode
 }
 
-const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({ videoId, onComplete }) => {
+const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({ 
+  videoId, 
+  onComplete,
+  editMode = false // Default to false for backward compatibility
+}) => {
   const [players, setPlayers] = useState<Player[]>([
     { id: 1, name: "" },
     { id: 2, name: "" },
     { id: 3, name: "" },
     { id: 4, name: "" }
   ]);
+  const [originalPlayers, setOriginalPlayers] = useState<Player[]>([]); // Store original data for comparison
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const { showToast } = useToast();
@@ -49,11 +55,12 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({ videoId, 
             }
             
             setPlayers(updatedPlayers);
+            setOriginalPlayers(JSON.parse(JSON.stringify(updatedPlayers))); // Deep copy for comparison
             
-            // If all players have descriptions, we can consider setup complete
-            if (updatedPlayers.every(p => p.name && p.name.trim() !== '')) {
+            // If not in edit mode and all players have descriptions, we can consider setup complete
+            if (!editMode && updatedPlayers.every(p => p.name && p.name.trim() !== '')) {
               showToast('Player descriptions loaded', 'info');
-              onComplete(); // Skip the form if we already have all descriptions
+              onComplete(); // Skip the form if we already have all descriptions and not in edit mode
             }
           }
         }
@@ -65,7 +72,7 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({ videoId, 
     };
     
     loadCategories();
-  }, [videoId]);
+  }, [videoId, editMode]);
 
   const handleNameChange = (id: number, name: string) => {
     setPlayers(prev => 
@@ -114,13 +121,30 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({ videoId, 
         throw new Error('Failed to save player descriptions');
       }
       
-      showToast('Player descriptions saved successfully', 'success');
+      // Check if we actually made changes
+      const madeChanges = players.some((player, idx) => 
+        player.name !== originalPlayers[idx]?.name
+      );
+      
+      const message = editMode 
+        ? (madeChanges ? 'Player descriptions updated successfully' : 'No changes were made') 
+        : 'Player descriptions saved successfully';
+        
+      showToast(message, 'success');
       onComplete();
     } catch (error) {
       console.error('Error saving player descriptions:', error);
       showToast('Failed to save player descriptions', 'error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    // In edit mode, we can cancel and restore original values
+    if (editMode) {
+      setPlayers(JSON.parse(JSON.stringify(originalPlayers))); // Restore from deep copy
+      onComplete();
     }
   };
 
@@ -134,9 +158,14 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({ videoId, 
 
   return (
     <div className="card bg-base-100 shadow-lg p-6">
-      <h3 className="card-title mb-4">Player Descriptions</h3>
+      <h3 className="card-title mb-4">
+        {editMode ? 'Edit Player Descriptions' : 'Player Descriptions'}
+      </h3>
+      
       <p className="text-sm mb-4">
-        Provide a unique description for each player in the video. This will be used for all annotations.
+        {editMode 
+          ? 'Update the descriptions for each player in the video. This will affect all annotations.' 
+          : 'Provide a unique description for each player in the video. This will be used for all annotations.'}
       </p>
       
       <div className="space-y-4">
@@ -157,6 +186,16 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({ videoId, 
       </div>
       
       <div className="card-actions justify-end mt-6">
+        {editMode && (
+          <button 
+            className="btn btn-outline"
+            onClick={handleCancel}
+            disabled={isSaving}
+          >
+            Cancel
+          </button>
+        )}
+        
         <button 
           className="btn btn-primary"
           onClick={handleSubmit}
@@ -167,7 +206,7 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({ videoId, 
               <span className="loading loading-spinner loading-xs"></span>
               Saving...
             </>
-          ) : 'Save Player Descriptions'}
+          ) : (editMode ? 'Update Descriptions' : 'Save Player Descriptions')}
         </button>
       </div>
     </div>
