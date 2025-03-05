@@ -175,47 +175,56 @@ def modify_coco_2_odvg(categories, video_id):
 
 
 def modify_config_files(categories):
+    """
+    Modify GroundingDINO config files with custom category labels
+    """
+    # Extract label names from categories
     labels = [cat["name"] for cat in categories]
     label_list_content = f'label_list = {str(labels)}\n'
 
+    # Get paths to config files
     g_coco_path = os.path.join(GROUNDING_DINO_PATH, "GroundingDINO/config/cfg_coco.py")
     g_odvg_path = os.path.join(GROUNDING_DINO_PATH, "GroundingDINO/config/cfg_odvg.py")
 
     for fp in [g_coco_path, g_odvg_path]:
-        with open(fp, 'r') as file:
-            content = file.readlines()
+        try:
+            with open(fp, 'r') as file:
+                content = file.readlines()
 
-        # Create new content list
-        new_content = []
-        label_list_added = False
-        skip_next = False
+            # Create new content list
+            new_content = []
+            label_list_added = False
 
-        for i, line in enumerate(content):
-            # Skip if this line was marked for skipping
-            if skip_next:
-                skip_next = False
-                continue
+            i = 0
+            while i < len(content):
+                line = content[i]
                 
-            # Handle use_coco_eval
-            if 'use_coco_eval' in line:
-                new_content.append('use_coco_eval = False\n')
-                new_content.append('\n')
-                new_content.append(label_list_content)
-                label_list_added = True
-                continue
+                # Handle use_coco_eval line
+                if 'use_coco_eval' in line:
+                    new_content.append('use_coco_eval = False\n')
+                    new_content.append('\n')
+                    new_content.append(label_list_content)  # Add our custom label list
+                    label_list_added = True
+                    i += 1
+                    continue
                 
-            # Skip existing label_list lines
-            if 'label_list' in line:
-                skip_next = True  # Skip the next line too (the actual list)
-                continue
+                # Skip existing label_list lines and the list that follows
+                if 'label_list' in line:
+                    i += 2  # Skip this line and the next (the actual list)
+                    continue
+                
+                # Add other lines normally
+                if not (label_list_added and line.strip() == ''):  # Avoid duplicate blank lines
+                    new_content.append(line)
+                i += 1
 
-            # Add other lines normally
-            if not (label_list_added and line.strip() == ''):  # Avoid duplicate blank lines
-                new_content.append(line)
-
-        # Write the modified content back to file
-        with open(fp, 'w') as file:
-            file.writelines(new_content)
+            # Write the modified content back to file
+            with open(fp, 'w') as file:
+                file.writelines(new_content)
+                
+        except Exception as e:
+            print(f"Error modifying config file {fp}: {str(e)}")
+            raise Exception(f"Failed to modify config file: {str(e)}")
             
             
 def write_datasets_mixed_odvg(video_id):

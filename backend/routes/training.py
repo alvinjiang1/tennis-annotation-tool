@@ -10,8 +10,10 @@ from flask import Blueprint, request, jsonify
 from routes.util import split_dataset, modify_coco_2_odvg, modify_config_files
 
 import yapf
+# import routes.numpy_patch
 
 training_router = Blueprint("training", __name__)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Base directories
 DATA_DIR = "data"
@@ -100,6 +102,7 @@ def run_training(video_id, categories):
             stderr=subprocess.PIPE
         )
         stdout, stderr = process.communicate()
+        print(f'process return code: {process.returncode}')
 
         if process.returncode != 0:
             print(f'Training failed for video {video_id}: {stderr.decode("utf-8")}')
