@@ -1,5 +1,5 @@
 import React from 'react';
-import { ANNOTATION, TRAINING, SHOT_LABELLING } from '../../hooks/useToolbarTab'
+import { ANNOTATION, TRAINING, RALLY_ANALYSIS } from '../../hooks/useToolbarTab';
 
 interface SidebarProps {
   setToolbarTab: (tabIndex: number) => void;
@@ -17,7 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: ANNOTATION, name: 'Annotate', icon: '✏️', color: 'accent' },
     { id: TRAINING, name: 'Training', icon: '🧠', color: 'primary' },
-    { id: SHOT_LABELLING, name: 'Label Shots', icon: '🎬', color: 'error' }
+    { id: RALLY_ANALYSIS, name: 'Rally Analysis', icon: '🎾', color: 'error' } // Updated name
   ];
 
   return (

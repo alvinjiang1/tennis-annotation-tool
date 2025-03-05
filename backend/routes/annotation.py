@@ -363,3 +363,161 @@ def save_frame_annotations():
     except Exception as e:
         print(f"Error saving frame annotations: {e}")
         return jsonify({"error": str(e)}), 500
+    
+
+@annotation_router.route("/get-rallies/<video_id>", methods=["GET"])
+def get_rallies(video_id):
+    """Get rally data for a specific video"""
+    try:
+        # Prepare rally data file path
+        rally_dir = os.path.join(DATA_DIR, "rallies")
+        os.makedirs(rally_dir, exist_ok=True)
+        rally_file = os.path.join(rally_dir, f"{video_id}_rallies.json")
+        
+        # Return existing data if available
+        if os.path.exists(rally_file):
+            with open(rally_file, "r") as f:
+                data = json.load(f)
+            return jsonify(data)
+        else:
+            # Return empty structure if no data exists yet
+            return jsonify({
+                "netPosition": None,
+                "rallies": {}
+            })
+    except Exception as e:
+        print(f"Error getting rally data: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@annotation_router.route("/save-rallies", methods=["POST"])
+def save_rallies():
+    """Save rally data for a specific video"""
+    try:
+        data = request.json
+        video_id = data.get("video_id")
+        rally_data = data.get("data")
+        
+        if not video_id or not rally_data:
+            return jsonify({"error": "Missing video_id or rally data"}), 400
+        
+        # Ensure directory exists
+        rally_dir = os.path.join(DATA_DIR, "rallies")
+        os.makedirs(rally_dir, exist_ok=True)
+        
+        # Save rally data
+        rally_file = os.path.join(rally_dir, f"{video_id}_rallies.json")
+        with open(rally_file, "w") as f:
+            json.dump(rally_data, f, indent=2)
+        
+        return jsonify({"message": "Rally data saved successfully"}), 200
+    except Exception as e:
+        print(f"Error saving rally data: {e}")
+        return jsonify({"error": str(e)}), 500
+    
+
+@annotation_router.route("/get-pose-coordinates/<video_id>", methods=["GET"])
+def get_pose_coordinates(video_id):
+    """Get pose coordinates JSON for a specific video"""
+    try:
+        pose_file = os.path.join(POSE_COORDINATES_DIR, f"{video_id}_pose.json")
+        
+        if not os.path.exists(pose_file):
+            return jsonify({"error": "Pose coordinates not found"}), 404
+            
+        with open(pose_file, 'r') as f:
+            pose_data = json.load(f)
+            
+        return jsonify(pose_data)
+    except Exception as e:
+        print(f"Error getting pose coordinates: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@annotation_router.route("/update-frame", methods=["POST"])
+def update_frame_annotations():
+    """Update bounding boxes for a specific frame - direct approach"""
+    try:
+        data = request.json
+        video_id = data.get("video_id")
+        frame_number = data.get("frame_number")
+        bboxes = data.get("bboxes", [])
+        
+        if not all([video_id, frame_number, bboxes]):
+            return jsonify({"error": "Missing required fields"}), 400
+            
+        # Path to raw frame
+        frame_path = os.path.join(RAW_FRAMES_DIR, video_id, f"{frame_number}.jpg")
+        if not os.path.exists(frame_path):
+            return jsonify({"error": f"Frame {frame_number}.jpg not found"}), 404
+            
+        # Path to save boxes in JSON
+        boxes_path = os.path.join(DATA_DIR, "bbox", f"{video_id}_boxes.json")
+        os.makedirs(os.path.dirname(boxes_path), exist_ok=True)
+        
+        # Load existing boxes or create new dictionary
+        if os.path.exists(boxes_path):
+            with open(boxes_path, 'r') as f:
+                boxes_data = json.load(f)
+        else:
+            boxes_data = {}
+            
+        # Update boxes for this frame
+        boxes_data[frame_number] = bboxes
+        
+        # Save updated boxes
+        with open(boxes_path, 'w') as f:
+            json.dump(boxes_data, f, indent=2)
+            
+        # Path to save processed frames with poses
+        output_dir = os.path.join(POSE_FRAMES_DIR, video_id)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Run pose estimation on the frame
+        try:
+            from models.pose_estimation.tennis_analyzer import TennisPlayerAnalyzer
+            
+            analyzer = TennisPlayerAnalyzer(
+                frames_dir=os.path.join(RAW_FRAMES_DIR, video_id),
+                bbox_file=boxes_path
+            )
+            
+            # Process this specific frame
+            pose_coordinates_path = os.path.join(POSE_COORDINATES_DIR, f"{video_id}_pose.json")
+            os.makedirs(os.path.dirname(pose_coordinates_path), exist_ok=True)
+            
+            # Create or load pose coordinates file
+            if os.path.exists(pose_coordinates_path):
+                with open(pose_coordinates_path, 'r') as f:
+                    all_poses = json.load(f)
+            else:
+                all_poses = {}
+                
+            # Process just this specific frame
+            frame_with_poses, _, all_poses = analyzer.process_frame(
+                frame_path=Path(frame_path),
+                all_poses=all_poses
+            )
+            
+            # Save updated pose file
+            with open(pose_coordinates_path, 'w') as f:
+                json.dump(all_poses, f, indent=2)
+                
+            # Save the processed frame
+            output_path = os.path.join(output_dir, f"{frame_number}_pred.jpg")
+            if frame_with_poses is not None:
+                cv2.imwrite(str(output_path), frame_with_poses)
+            else:
+                return jsonify({"error": "Failed to process frame with poses"}), 500
+                
+        except Exception as e:
+            print(f"Error processing frame with poses: {e}")
+            return jsonify({"error": f"Error in pose processing: {str(e)}"}), 500
+            
+        return jsonify({
+            "message": "Frame bounding boxes and poses updated successfully",
+            "frame": frame_number,
+            "bbox_count": len(bboxes)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error updating frame annotations: {e}")
+        return jsonify({"error": str(e)}), 500
