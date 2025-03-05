@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient';
+import { API_BASE_URL } from './config';
 
 interface InferenceStatus {
   running: boolean;
@@ -36,7 +37,7 @@ export const inferenceService = {
   
   async getInferenceFrames(videoFilename: string): Promise<string[]> {
     try {
-      const data = await apiClient.get<{ frames: string[] }>(`/api/inference/frames?filename=${videoFilename}`);
+      const data = await apiClient.get<{ frames: string[] }>(`/api/inference/frames/${videoFilename}`);
       return data.frames.map(frame => `${API_BASE_URL}/api/inference/frame/${frame}`);
     } catch (error) {
       console.error('Error fetching inference frames:', error);

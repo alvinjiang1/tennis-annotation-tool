@@ -161,7 +161,7 @@ def get_extracted_frames(video_id):
     video_id = video_id.split('.')[0]
     
     """Retrieve list of frames for a specific video"""
-    predictions_dir = os.path.join(PREDICTIONS_DIR, video_id)
+    predictions_dir = os.path.join(PREDICTIONS_DIR, video_id)    
 
     if not os.path.exists(predictions_dir):
         return jsonify({"error": "No predictions found for this video"}), 404
