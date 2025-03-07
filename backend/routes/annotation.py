@@ -432,64 +432,7 @@ def get_pose_coordinates(video_id):
         print(f"Error getting pose coordinates: {e}")
         return jsonify({"error": str(e)}), 500
 
-@annotation_router.route("/get-bboxes-direct/<video_id>/<frame_number>", methods=["GET"])
-def get_direct_bboxes(video_id, frame_number):
-    """Get bounding boxes directly from the bbox file for a specific frame"""
-    try:
-        # Path to the bbox file
-        bbox_file = os.path.join(DATA_DIR, "bbox", f"{video_id}_boxes.json")
-        
-        if not os.path.exists(bbox_file):
-            return jsonify({"error": f"Bounding box file not found for video {video_id}"}), 404
-        
-        # Load the bounding boxes
-        with open(bbox_file, 'r') as f:
-            boxes_data = json.load(f)
-        
-        # Check if we have boxes for this frame
-        if frame_number not in boxes_data:
-            return jsonify({
-                "bboxes": [], 
-                "message": f"No bounding boxes found for frame {frame_number}"
-            }), 200
-            
-        # Get the boxes for this frame
-        frame_boxes = boxes_data[frame_number]
-        
-        # Convert to the format expected by the frontend
-        formatted_boxes = []
-        for box in frame_boxes:
-            # Check if bbox field exists
-            if "bbox" not in box:
-                continue
-                
-            bbox = box["bbox"]
-            # Format is [x, y, width, height]
-            formatted_boxes.append({
-                "x": bbox[0],
-                "y": bbox[1],
-                "width": bbox[2],
-                "height": bbox[3],
-                "label": box.get("label", "Player"),
-                "category_id": box.get("category_id", 1)
-            })
-        
-        print(f"Found {len(formatted_boxes)} boxes for frame {frame_number} in video {video_id}")
-        for i, box in enumerate(formatted_boxes):
-            print(f"  Box {i+1}: x={box['x']}, y={box['y']}, w={box['width']}, h={box['height']}")
-            
-        return jsonify({
-            "bboxes": formatted_boxes,
-            "frame_number": frame_number,
-            "video_id": video_id
-        }), 200
-            
-    except Exception as e:
-        print(f"Error retrieving direct bboxes: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-    
+
 @annotation_router.route("/update-frame", methods=["POST"])
 def update_frame_annotations():
     """Update bounding boxes for a specific frame - with proper logging"""
