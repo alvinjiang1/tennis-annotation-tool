@@ -18,12 +18,6 @@ class TennisPlayerAnalyzer:
             with open(self.bbox_file, 'r') as f:
                 bbox_data = json.load(f)
                 
-            # Debug the loaded data
-            print(f"Loaded predictions from {self.bbox_file}")
-            print(f"Frames with predictions: {list(bbox_data.keys())}")
-            for frame, predictions in bbox_data.items():
-                print(f"Frame {frame}: {len(predictions)} predictions")
-                
             return bbox_data
         except Exception as e:
             print(f"Error loading predictions: {str(e)}")
@@ -76,8 +70,11 @@ class TennisPlayerAnalyzer:
         x1, y1, x2, y2 = bbox
         color = (0, 255, 0)  # Consistent green color for all bboxes
         
+        # Make sure coordinates are integers
+        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+        
         # Draw rectangle using cv2.rectangle which expects top-left and bottom-right coordinates
-        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         
         # Add label with confidence
         display_label = f"{label} ({confidence:.2f})"
@@ -86,7 +83,7 @@ class TennisPlayerAnalyzer:
         cv2.putText(
             frame,
             display_label,
-            (int(x1), int(y1) - 10),
+            (x1, y1 - 10),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
             color,
@@ -174,37 +171,30 @@ class TennisPlayerAnalyzer:
                     print(f"Warning: Missing bbox field in prediction {i+1}")
                     continue
                     
-                bbox = pred['bbox']
+                # Create a copy of the original bbox to avoid modifying the source data
+                original_bbox = pred['bbox'].copy() if isinstance(pred['bbox'], list) else list(pred['bbox'])
+                
                 # Check if bbox is in the expected format
-                if not isinstance(bbox, list) or len(bbox) < 4:
-                    print(f"Warning: Invalid bbox format in prediction {i+1}: {bbox}")
+                if not isinstance(original_bbox, list) or len(original_bbox) < 4:
+                    print(f"Warning: Invalid bbox format in prediction {i+1}: {original_bbox}")
                     continue
                 
                 confidence = pred.get('confidence', 1.0)  # Default to 1.0 if missing
                 label = pred.get('label', f"Player {i+1}")  # Default with index if missing
                 
-                # Handle different bbox formats:
-                # If bbox is [x, y, width, height] (COCO format)
-                if len(bbox) == 4:
-                    x1, y1 = bbox[0], bbox[1]
-                    if isinstance(bbox[2], (int, float)) and isinstance(bbox[3], (int, float)):
-                        # This is [x, y, width, height] format
-                        w, h = bbox[2], bbox[3]
-                        x2, y2 = x1 + w, y1 + h
-                    else:
-                        # This might be [x1, y1, x2, y2] format
-                        x2, y2 = bbox[2], bbox[3]
-                else:
-                    print(f"Warning: Unexpected bbox format with {len(bbox)} elements")
-                    continue
+                # We're assuming bbox is always [x1, y1, x2, y2] format
+                x1, y1, x2, y2 = original_bbox
                 
-                # Store bbox in [x1, y1, x2, y2] format for processing
-                bbox_coords = [x1, y1, x2, y2]
+                # For storage and frontend compatibility, convert to COCO format [x, y, width, height]
+                # But keep both formats handy
+                bbox_coords = [x1, y1, x2, y2]  # Original coordinates
+                bbox_coco = [x1, y1, x2 - x1, y2 - y1]  # Converted to COCO format
                 
                 # Debug the box coordinates
-                print(f"Processing box: [{x1}, {y1}, {x2}, {y2}] for {label}")
+                print(f"Original bbox [x1,y1,x2,y2]: {bbox_coords}")
+                print(f"Converted to COCO [x,y,w,h]: {bbox_coco}")
                 
-                # Get expanded bbox for pose detection
+                # Get expanded bbox for pose detection ONLY
                 expanded_bbox = self.expand_bbox(bbox_coords)
                 ex1, ey1, ex2, ey2 = expanded_bbox
                 
@@ -233,9 +223,9 @@ class TennisPlayerAnalyzer:
                 crop_keypoints[valid_mask, 0] += ex1
                 crop_keypoints[valid_mask, 1] += ey1
                 
-                # Store pose information - keep the original COCO format bbox
+                # Store pose information - use COCO format for consistency with frontend expectations
                 pose_info = {
-                    'bbox': bbox,  # Keep original bbox format
+                    'bbox': bbox_coco,  # Store in COCO format [x,y,w,h] for frontend compatibility
                     'bbox_confidence': float(confidence),
                     'label': label,
                     'keypoints': crop_keypoints.tolist(),
@@ -247,7 +237,7 @@ class TennisPlayerAnalyzer:
                 if np.any(crop_keypoints):
                     self.draw_pose(frame_with_poses, crop_keypoints, label)
                 
-                # Draw the original bounding box
+                # IMPORTANT: Draw using original coordinates, NOT the expanded ones
                 self.draw_bbox(frame_with_poses, bbox_coords, confidence, label)
                 
                 print(f"Successfully processed box {i+1} for {label}")

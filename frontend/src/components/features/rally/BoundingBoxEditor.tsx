@@ -116,18 +116,24 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
             if (poseData[frameKey] && poseData[frameKey].length > 0) {
               const boxes = poseData[frameKey].map((item: any) => {
                 const bbox = item.bbox;
-                // Ensure we're using [x, y, width, height] format
-                return {
-                  x: bbox[0],
-                  y: bbox[1],
-                  width: bbox[2],
-                  height: bbox[3],
-                  label: item.label,
-                  category_id: getCategoryIdFromLabel(item.label, categories)
-                };
-              });
+                // Check if we have a valid bbox array with 4 elements
+                if (bbox && bbox.length === 4) {
+                  // Convert from COCO format [x, y, w, h] to object format {x, y, width, height}
+                  return {
+                    x: bbox[0],
+                    y: bbox[1],
+                    width: bbox[2],
+                    height: bbox[3],
+                    label: item.label,
+                    category_id: getCategoryIdFromLabel(item.label, categories)
+                  };
+                } else {
+                  console.error("Unexpected bbox format:", bbox);
+                  return null;
+                }
+              }).filter(Boolean);
               
-              setBoundingBoxes(boxes);
+              setBoundingBoxes(boxes as BoundingBox[]);
               console.log(`Loaded ${boxes.length} boxes for frame ${frameKey}:`, boxes);
             }
           }
@@ -144,15 +150,24 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
           if (boxesResponse.ok) {
             const boxesData = await boxesResponse.json();
             if (boxesData && Array.isArray(boxesData)) {
-              const boxes = boxesData.map((box: any) => ({
-                x: box.bbox[0],
-                y: box.bbox[1],
-                width: box.bbox[2],
-                height: box.bbox[3],
-                label: box.label,
-                category_id: box.category_id || 1
-              }));
-              setBoundingBoxes(boxes);
+              const boxes = boxesData.map((box: any) => {
+                // Ensure we have a valid bbox array with 4 elements
+                if (box.bbox && box.bbox.length === 4) {
+                  return {
+                    x: box.bbox[0],
+                    y: box.bbox[1],
+                    width: box.bbox[2],
+                    height: box.bbox[3],
+                    label: box.label,
+                    category_id: box.category_id || 1
+                  };
+                } else {
+                  console.error("Invalid bbox format:", box.bbox);
+                  return null;
+                }
+              }).filter(Boolean);
+              
+              setBoundingBoxes(boxes as BoundingBox[]);
             }
           }
         }
@@ -179,7 +194,7 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
 
   // Initialize canvas and draw bounding boxes once BOTH image and boxes are loaded
   useEffect(() => {
-    if (!rawFrameUrl || !imageLoaded || boundingBoxes.length === 0) return;
+    if (!rawFrameUrl || !imageLoaded) return;
     
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -418,14 +433,14 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
       // Make sure we send only the frame number without extension
       const frameIdentifier = frameNumber.replace(/\.jpg$/, '');
       
-      // Prepare the bounding boxes in the format the backend expects
+      // Prepare the bounding boxes in the format the backend expects - [x1, y1, x2, y2]
       const boxesForBackend = boundingBoxes.map(box => ({
-        // Backend expects [x, y, width, height] - COCO format
+        // Convert to [x1, y1, x2, y2] format
         bbox: [
-          Math.round(box.x), 
-          Math.round(box.y), 
-          Math.round(box.width), 
-          Math.round(box.height)
+          Math.round(box.x),                    // x1
+          Math.round(box.y),                    // y1
+          Math.round(box.x + box.width),        // x2
+          Math.round(box.y + box.height)        // y2
         ],
         label: box.label,
         category_id: box.category_id,

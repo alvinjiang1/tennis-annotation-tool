@@ -78,11 +78,15 @@ def run_training(video_id, categories):
     print(f"Running training for video {video_id}")
     global training_status
     training_status["running"] = True
+    training_status["last_status"] = "Initializing training..."
 
     try:
         if not update_configurations(video_id, categories):
             raise Exception("Failed to update config files")
 
+        # Update status after configuration
+        training_status["last_status"] = "Configurations updated, starting training process..."
+            
         # Create video-specific output directory
         video_output_dir = os.path.join(OUTPUT_DIR, video_id)
         os.makedirs(video_output_dir, exist_ok=True)
@@ -96,27 +100,45 @@ def run_training(video_id, categories):
             "--options", "text_encoder_type=models/grounding_dino/bert",
         ]
 
+        # Update status before starting subprocess
+        training_status["last_status"] = "Running training process..."
+        
         process = subprocess.Popen(
             command, 
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE
         )
-        stdout, stderr = process.communicate()
-        print(f'process return code: {process.returncode}')
-
-        if process.returncode != 0:
-            print(f'Training failed for video {video_id}: {stderr.decode("utf-8")}')
-            training_status["last_status"] = f"Training failed"
-        else:
-            print(f"Training completed for video {video_id}")
-            training_status["last_status"] = "Training completed successfully."
+        
+        # Don't wait for process to complete - just update status that it's running
+        training_status["last_status"] = "Training in progress..."
+        
+        # Start a monitoring thread that doesn't block the main flow
+        def monitor_process():
+            stdout, stderr = process.communicate()
+            print(f'process return code: {process.returncode}')
+            
+            if process.returncode != 0:
+                error_msg = stderr.decode("utf-8")
+                print(f'Training failed for video {video_id}: {error_msg}')
+                training_status["last_status"] = f"Training failed: {error_msg[:100]}..."
+            else:
+                print(f"Training completed for video {video_id}")
+                training_status["last_status"] = "Training completed successfully."
+            
+            training_status["running"] = False
+            
+        # Start monitoring in a separate thread
+        monitor_thread = threading.Thread(target=monitor_process)
+        monitor_thread.daemon = True
+        monitor_thread.start()
+        
+        # Return immediately while training continues in background
+        return
 
     except Exception as e:
         print(f"Error running training: {e}")
         training_status["last_status"] = f"Training error: {str(e)}"
-    finally:
         training_status["running"] = False
-        training_status["last_status"] = f'Successfully trained model for video {video_id}'
 
 @training_router.route("/train/start", methods=["POST"])
 def start_training():

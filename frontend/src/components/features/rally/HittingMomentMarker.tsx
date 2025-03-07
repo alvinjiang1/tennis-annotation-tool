@@ -50,25 +50,75 @@ const HittingMomentMarker: React.FC<HittingMomentMarkerProps> = ({
           }
         }
         
-        // Get bounding boxes
-        const boxesResponse = await fetch(`http://localhost:5000/api/annotation/get-bbox`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image_url: imageUrl }),
-        });
-        
-        if (boxesResponse.ok) {
-          const boxesData = await boxesResponse.json();
-          if (boxesData && Array.isArray(boxesData)) {
-            const boxes = boxesData.map((box: any) => ({
-              x: box.bbox[0],
-              y: box.bbox[1],
-              width: box.bbox[2],
-              height: box.bbox[3],
-              label: box.label,
-              category_id: box.category_id || 1
-            }));
-            setBoundingBoxes(boxes);
+        // Get bounding boxes - first try from pose coordinates
+        try {
+          const poseResponse = await fetch(`http://localhost:5000/api/annotation/get-pose-coordinates/${videoId}`);
+          if (poseResponse.ok) {
+            const poseData = await poseResponse.json();
+            
+            // Extract frame number from URL - format: 0001_pred.jpg
+            const frameFileName = imageUrl.split('/').pop() || '';
+            const frameNumber = frameFileName.split('_')[0]; // Get the number part (e.g., "0001")
+            const frameKey = `frame_${frameNumber}`;
+            
+            console.log("Looking for bbox data for frame key:", frameKey);
+            
+            if (poseData[frameKey] && poseData[frameKey].length > 0) {
+              const boxes = poseData[frameKey].map((item: any) => {
+                const bbox = item.bbox;
+                // Check if bbox is already in the expected format
+                if (bbox && bbox.length === 4) {
+                  // Convert from COCO format [x, y, w, h] to object format {x, y, width, height}
+                  return {
+                    x: bbox[0],
+                    y: bbox[1],
+                    width: bbox[2],
+                    height: bbox[3],
+                    label: item.label,
+                    category_id: item.category_id || 1
+                  };
+                } else {
+                  console.error("Unexpected bbox format:", bbox);
+                  return null;
+                }
+              }).filter(Boolean);
+              
+              setBoundingBoxes(boxes as BoundingBox[]);
+              console.log(`Loaded ${boxes.length} boxes for frame ${frameKey}:`, boxes);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to fetch pose coordinates, falling back to get-bbox", error);
+          
+          // Fallback to get-bbox if pose coordinates aren't available
+          const boxesResponse = await fetch(`http://localhost:5000/api/annotation/get-bbox`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image_url: imageUrl }),
+          });
+          
+          if (boxesResponse.ok) {
+            const boxesData = await boxesResponse.json();
+            if (boxesData && Array.isArray(boxesData)) {
+              const boxes = boxesData.map((box: any) => {
+                // Ensure we have a valid bbox field
+                if (box.bbox && box.bbox.length === 4) {
+                  return {
+                    x: box.bbox[0],
+                    y: box.bbox[1],
+                    width: box.bbox[2],
+                    height: box.bbox[3],
+                    label: box.label,
+                    category_id: box.category_id || 1
+                  };
+                } else {
+                  console.error("Invalid bbox data:", box);
+                  return null;
+                }
+              }).filter(Boolean);
+              
+              setBoundingBoxes(boxes as BoundingBox[]);
+            }
           }
         }
       } catch (error) {
@@ -249,9 +299,15 @@ const HittingMomentMarker: React.FC<HittingMomentMarkerProps> = ({
         const centerX = box.x + box.width / 2;
         const centerY = box.y + box.height / 2;
         
-        // Convert bounding boxes to format needed for saving
+        // Convert bounding boxes to [x1, y1, x2, y2] format for saving
         const boxesForSaving = boundingBoxes.map(b => ({
-          bbox: [b.x, b.y, b.width, b.height],
+          // Send in the format that backend expects: [x1, y1, x2, y2]
+          bbox: [
+            b.x,                // x1
+            b.y,                // y1
+            b.x + b.width,      // x2
+            b.y + b.height      // y2
+          ],
           category_id: b.category_id,
           label: b.label
         }));
