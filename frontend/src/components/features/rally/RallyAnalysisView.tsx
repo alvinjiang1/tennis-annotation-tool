@@ -31,7 +31,8 @@ const RallyAnalysisView: React.FC = () => {
   const [currentFrameIndex, setCurrentFrameIndex] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [currentRallyId, setCurrentRallyId] = useState<string>("None");
-  const [isRecordingRally, setIsRecordingRally] = useState<boolean>(false);
+  const [activeRally, setActiveRally] = useState<string | null>(null);
+  const [isMarkingHitting, setIsMarkingHitting] = useState<boolean>(false);
   const [netPosition, setNetPosition] = useState<{ x: number, y: number } | null>(null);
   const [isSettingNet, setIsSettingNet] = useState<boolean>(false);
   const [rallyData, setRallyData] = useState<RallyData>({
@@ -39,7 +40,9 @@ const RallyAnalysisView: React.FC = () => {
     rallies: {}
   });
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [imageSize, setImageSize] = useState<{ width: number, height: number }>({ width: 1280, height: 720 });
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
   const { showToast } = useToast();
 
   // Extract videoId from filename when video is selected
@@ -109,7 +112,7 @@ const RallyAnalysisView: React.FC = () => {
   const handleVideoSelection = (videoFileName: string) => {
     if (videoFileName !== selectedVideo) {
       setCurrentFrameIndex(0);
-      setIsRecordingRally(false);
+      setActiveRally(null);
       setCurrentRallyId("None");
       setSelectedVideo(videoFileName);
     }
@@ -118,9 +121,9 @@ const RallyAnalysisView: React.FC = () => {
   const handleStartRally = () => {
     const newRallyId = Object.keys(rallyData.rallies).length + 1;
     setCurrentRallyId(newRallyId.toString());
-    setIsRecordingRally(true);
+    setActiveRally(newRallyId.toString());
     
-    // Initialize new rally
+    // Initialize new rally with current frame as start frame
     setRallyData(prev => ({
       ...prev,
       rallies: {
@@ -133,44 +136,73 @@ const RallyAnalysisView: React.FC = () => {
       }
     }));
     
-    showToast(`Started Rally #${newRallyId}`, "info");
+    showToast(`Created Rally #${newRallyId} starting at frame ${currentFrameIndex + 1}`, "info");
   };
 
-  const handleEndRally = () => {
-    if (!isRecordingRally) return;
+  const handleSetRallyEndFrame = () => {
+    if (!activeRally) {
+      showToast("Please select or create a rally first", "warning");
+      return;
+    }
     
     setRallyData(prev => ({
       ...prev,
       rallies: {
         ...prev.rallies,
-        [currentRallyId]: {
-          ...prev.rallies[currentRallyId],
+        [activeRally]: {
+          ...prev.rallies[activeRally],
           endFrame: currentFrameIndex
         }
       }
     }));
     
-    setIsRecordingRally(false);
-    showToast(`Ended Rally #${currentRallyId}`, "success");
+    showToast(`Set end frame for Rally #${activeRally} at frame ${currentFrameIndex + 1}`, "success");
+  };
+
+  const handleToggleMarkHitting = () => {
+    if (!activeRally) {
+      showToast("Please select or create a rally first", "warning");
+      return;
+    }
+    
+    setIsMarkingHitting(!isMarkingHitting);
+    if (!isMarkingHitting) {
+      showToast("Click on a player to mark a hitting moment", "info");
+    }
   };
 
   const handleMarkHittingMoment = (playerId: number, position: { x: number, y: number }, boundingBoxes: any[]) => {
-    if (!isRecordingRally) {
-      showToast("Please start a rally before marking hitting moments", "warning");
+    if (!activeRally) {
+      showToast("Please select or create a rally first", "warning");
       return;
     }
     
     setRallyData(prev => {
       const updatedRallies = {...prev.rallies};
-      const rally = updatedRallies[currentRallyId];
+      const rally = updatedRallies[activeRally];
       
-      // Add hitting moment
-      rally.hittingMoments.push({
-        frameNumber: currentFrameIndex,
-        playerId,
-        playerPosition: position,
-        boundingBoxes: boundingBoxes
-      });
+      // Check if we already have a hitting moment for this frame
+      const existingIndex = rally.hittingMoments.findIndex(
+        moment => moment.frameNumber === currentFrameIndex
+      );
+      
+      if (existingIndex >= 0) {
+        // Update existing hitting moment
+        rally.hittingMoments[existingIndex] = {
+          frameNumber: currentFrameIndex,
+          playerId,
+          playerPosition: position,
+          boundingBoxes: boundingBoxes
+        };
+      } else {
+        // Add new hitting moment
+        rally.hittingMoments.push({
+          frameNumber: currentFrameIndex,
+          playerId,
+          playerPosition: position,
+          boundingBoxes: boundingBoxes
+        });
+      }
       
       return {
         ...prev,
@@ -178,7 +210,8 @@ const RallyAnalysisView: React.FC = () => {
       };
     });
     
-    showToast(`Marked hitting moment for Player ${playerId}`, "info");
+    showToast(`Marked hitting moment for Player ${playerId} at frame ${currentFrameIndex + 1}`, "info");
+    setIsMarkingHitting(false);
   };
 
   const handleSetNetPosition = (position: { x: number, y: number }) => {
@@ -188,7 +221,7 @@ const RallyAnalysisView: React.FC = () => {
       netPosition: position
     }));
     setIsSettingNet(false);
-    showToast("Net position saved", "success");
+    showToast(`Net position saved at X: ${Math.round(position.x)}, Y: ${Math.round(position.y)}`, "success");
   };
 
   const handleSaveRallyData = async () => {
@@ -237,6 +270,16 @@ const RallyAnalysisView: React.FC = () => {
     }
   };
 
+  // Check if current frame is marked as a hitting moment in the active rally
+  const isCurrentFrameHittingMoment = () => {
+    if (!activeRally) return false;
+    
+    const rally = rallyData.rallies[activeRally];
+    if (!rally) return false;
+    
+    return rally.hittingMoments.some(moment => moment.frameNumber === currentFrameIndex);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -268,6 +311,11 @@ const RallyAnalysisView: React.FC = () => {
                   <span className="badge badge-primary ml-2">
                     Frame {currentFrameIndex + 1} of {frames.length}
                   </span>
+                  {activeRally && (
+                    <span className="badge badge-secondary ml-2">
+                      Rally #{activeRally}
+                    </span>
+                  )}
                 </h3>
                 
                 <div className="flex gap-2">
@@ -286,6 +334,16 @@ const RallyAnalysisView: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Net position indicator */}
+              {netPosition && !isSettingNet && !isEditing && (
+                <div className="alert alert-info py-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Net position set at X: {Math.round(netPosition.x)}, Y: {Math.round(netPosition.y)}</span>
+                </div>
+              )}
               
               <div className="relative mt-2">
                 {isSettingNet ? (
@@ -303,66 +361,195 @@ const RallyAnalysisView: React.FC = () => {
                     />
                   </div>
                 ) : isEditing ? (
-                  <BoundingBoxEditor
+                      <BoundingBoxEditor
                     imageUrl={frames[currentFrameIndex]}
                     videoId={videoId}
                     frameIndex={currentFrameIndex}
                     onSaveComplete={() => {
                       // Force reload frames to get updated poses
-                      setTimeout(() => {
-                        if (frames && frames.length > 0) {
-                          const newFrames = [...frames];
-                          // Update the current frame URL with a new timestamp to bust cache
-                          newFrames[currentFrameIndex] = frames[currentFrameIndex].split('?')[0] + 
-                            `?t=${new Date().getTime()}`;
-                          setFrames(newFrames);
+                      setIsLoading(true);
+                      
+                      // Display a message to the user about the processing
+                      showToast("Processing changes and regenerating pose data...", "info");
+                      
+                      setTimeout(async () => {
+                        try {
+                          // First verify the pose coordinates file has been updated
+                          try {
+                            const poseResponse = await fetch(`${backendUrl}/api/annotation/get-pose-coordinates/${videoId}`);
+                            if (!poseResponse.ok) {
+                              console.warn("Pose coordinates may not have been updated properly");
+                            } else {
+                              console.log("Successfully fetched updated pose coordinates");
+                            }
+                          } catch (error) {
+                            console.error("Error checking pose coordinates:", error);
+                          }
+                          
+                          // Refetch the frames with updated data
+                          const endpoint = `${backendUrl}/api/inference/frames/${videoId}`;
+                          const response = await fetch(endpoint);
+                          
+                          if (response.ok) {
+                            const data = await response.json();
+                            
+                            // Add cache-busting parameter to force reload of all frames
+                            const timestamp = new Date().getTime();
+                            const frameUrls = data.frames.map((frame: string) => 
+                              `${backendUrl}/api/inference/frame/${videoId}/${frame}?t=${timestamp}`
+                            );
+                            
+                            setFrames(frameUrls);
+                            showToast("Frames refreshed with updated annotations", "success");
+                          } else {
+                            throw new Error("Failed to refresh frames");
+                          }
+                        } catch (error) {
+                          console.error("Error refreshing frames:", error);
+                          showToast("Failed to refresh frames with new annotations", "error");
+                        } finally {
+                          setIsLoading(false);
+                          setIsEditing(false);
                         }
-                        setIsEditing(false);
-                      }, 2000); // Wait for backend processing
+                      }, 5000); // Give backend more time to process (increased to 5 seconds)
                     }}
+                  />
+                ) : isMarkingHitting ? (
+                  <HittingMomentMarker
+                    imageUrl={frames[currentFrameIndex]}
+                    videoId={videoId}
+                    onMarkHittingMoment={handleMarkHittingMoment}
                   />
                 ) : (
                   <div className="flex justify-center relative">
                     <img 
+                      ref={imageRef}
                       src={frames[currentFrameIndex]} 
                       alt={`Frame ${currentFrameIndex}`}
                       className="max-w-full rounded-lg shadow-lg"
+                      onLoad={() => {
+                        // Update image size when the image loads
+                        if (imageRef.current) {
+                          const img = imageRef.current;
+                          // Get the natural image dimensions
+                          const naturalWidth = img.naturalWidth;
+                          const naturalHeight = img.naturalHeight;
+                          setImageSize({ width: naturalWidth, height: naturalHeight });
+                        }
+                      }}
                     />
                     
+                    {/* Net position indicator */}
                     {netPosition && (
-                      <div 
-                        className="absolute w-full h-1 bg-red-500 opacity-70"
-                        style={{ 
-                          top: `${netPosition.y}px`,
-                          left: 0
-                        }}
-                      ></div>
+                      <>
+                        {/* Calculate scaled positions based on the actual displayed image size */}
+                        <div 
+                          className="absolute w-full h-1 bg-red-500 opacity-70"
+                          style={{ 
+                            top: `${(netPosition.y / imageSize.height) * 100}%`,
+                            left: 0
+                          }}
+                        ></div>
+                        {/* Vertical line at net X position */}
+                        <div 
+                          className="absolute w-1 bg-blue-500 opacity-70"
+                          style={{ 
+                            left: `${(netPosition.x / imageSize.width) * 100}%`,
+                            top: 0,
+                            bottom: 0,
+                            height: '100%'
+                          }}
+                        ></div>
+                      </>
                     )}
                     
-                    {isRecordingRally && (
-                      <HittingMomentMarker
-                        imageUrl={frames[currentFrameIndex]}
-                        videoId={videoId}
-                        onMarkHittingMoment={handleMarkHittingMoment}
-                      />
+                    {/* Hitting moment indicator */}
+                    {isCurrentFrameHittingMoment() && (
+                      <div className="absolute top-2 right-2 bg-success text-white p-2 rounded shadow-lg">
+                        Hitting Moment
+                      </div>
                     )}
                   </div>
                 )}
               </div>
               
-              <RallyControls
-                currentFrameIndex={currentFrameIndex}
-                totalFrames={frames.length}
-                isRecordingRally={isRecordingRally}
-                currentRallyId={currentRallyId}
-                onPreviousFrame={handlePreviousFrame}
-                onNextFrame={handleNextFrame}
-                onJumpToFrame={handleJumpToFrame}
-                onStartRally={handleStartRally}
-                onEndRally={handleEndRally}
-                onSaveRallyData={handleSaveRallyData}
-                disabled={isSettingNet || isEditing}
-              />
+              {/* Rally Controls */}
+              <div className="flex flex-col gap-4 mt-4">
+                {/* Rally management buttons */}
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  <div className="flex gap-2">
+                    <button 
+                      className="btn btn-success"
+                      onClick={handleStartRally}
+                      disabled={isSettingNet || isEditing}
+                    >
+                      Create New Rally
+                    </button>
+                    
+                    {activeRally && (
+                      <>
+                        <button 
+                          className="btn btn-primary"
+                          onClick={handleSetRallyEndFrame}
+                          disabled={isSettingNet || isEditing}
+                        >
+                          Set End Frame
+                        </button>
+                        
+                        <button 
+                          className={`btn ${isMarkingHitting ? 'btn-error' : 'btn-accent'}`}
+                          onClick={handleToggleMarkHitting}
+                          disabled={isSettingNet || isEditing}
+                        >
+                          {isMarkingHitting ? 'Cancel' : 'Mark Hitting Moment'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleSaveRallyData}
+                    disabled={isSettingNet || isEditing}
+                  >
+                    Save All Rally Data
+                  </button>
+                </div>
+                
+                {/* Frame Navigation */}
+                <div className="flex justify-between gap-2">
+                  <button
+                    className="btn btn-sm"
+                    onClick={handlePreviousFrame}
+                    disabled={isSettingNet || isEditing || currentFrameIndex === 0}
+                  >
+                    ◀️ Previous
+                  </button>
+                  
+                  <button
+                    className="btn btn-sm"
+                    onClick={handleNextFrame}
+                    disabled={isSettingNet || isEditing || currentFrameIndex === frames.length - 1}
+                  >
+                    Next ▶️
+                  </button>
+                </div>
+                
+                {/* Frame Slider */}
+                <div className="flex items-center gap-4">
+                  <span className="w-16 text-right">{currentFrameIndex + 1}</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={frames.length - 1}
+                    value={currentFrameIndex}
+                    onChange={(e) => handleJumpToFrame(parseInt(e.target.value))}
+                    disabled={isSettingNet || isEditing}
+                    className="range range-primary flex-grow"
+                  />
+                  <span className="w-16">{frames.length}</span>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -385,7 +572,7 @@ const RallyAnalysisView: React.FC = () => {
                     </thead>
                     <tbody>
                       {Object.entries(rallyData.rallies).map(([rallyId, rally]) => (
-                        <tr key={rallyId}>
+                        <tr key={rallyId} className={activeRally === rallyId ? "bg-base-300" : ""}>
                           <td>{rallyId}</td>
                           <td>
                             <button 
@@ -404,21 +591,21 @@ const RallyAnalysisView: React.FC = () => {
                                 {rally.endFrame + 1}
                               </button>
                             ) : (
-                              "In progress"
+                              "Not set"
                             )}
                           </td>
                           <td>{rally.hittingMoments.length}</td>
                           <td>
                             <div className="flex gap-1">
                               <button 
-                                className="btn btn-xs btn-outline"
+                                className={`btn btn-xs ${activeRally === rallyId ? 'btn-success' : 'btn-outline'}`}
                                 onClick={() => {
+                                  setActiveRally(rallyId);
                                   setCurrentRallyId(rallyId);
-                                  setIsRecordingRally(rally.endFrame < 0);
                                   handleJumpToFrame(rally.startFrame);
                                 }}
                               >
-                                Continue
+                                {activeRally === rallyId ? 'Selected' : 'Select'}
                               </button>
                               <button 
                                 className="btn btn-xs btn-error"
@@ -432,6 +619,11 @@ const RallyAnalysisView: React.FC = () => {
                                       rallies: updatedRallies
                                     };
                                   });
+                                  
+                                  if (activeRally === rallyId) {
+                                    setActiveRally(null);
+                                    setCurrentRallyId("None");
+                                  }
                                 }}
                               >
                                 Delete
@@ -448,7 +640,7 @@ const RallyAnalysisView: React.FC = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                   </svg>
-                  <span>No rallies have been marked yet. Use the "Start Rally" button to begin analyzing a rally.</span>
+                  <span>No rallies have been marked yet. Click "Create New Rally" to begin analyzing a rally.</span>
                 </div>
               )}
             </div>
@@ -472,22 +664,23 @@ const RallyAnalysisView: React.FC = () => {
                   <ol className="list-decimal list-inside space-y-1 text-sm">
                     <li>Select a video that has been processed with inference</li>
                     <li>Set the net position using the "Set Net Position" button</li>
-                    <li>Navigate to the beginning of a rally</li>
-                    <li>Click "Start Rally" to begin marking a rally</li>
-                    <li>Mark hitting moments by clicking on players during the rally</li>
-                    <li>Click "End Rally" when the rally is complete</li>
+                    <li>Navigate to the beginning of a rally and click "Create New Rally"</li>
+                    <li>Browse to moments where players hit the ball</li>
+                    <li>Click "Mark Hitting Moment" then select the player who is hitting the ball</li>
+                    <li>Navigate to the end of the rally and click "Set End Frame"</li>
                     <li>Save your rally data when finished</li>
                   </ol>
                 </div>
                 <div>
                   <h4 className="font-semibold mb-2">Tips & Features</h4>
                   <ul className="list-disc list-inside space-y-1 text-sm">
-                    <li>You can edit bounding boxes if needed</li>
+                    <li>The net position is shown with red (horizontal) and blue (vertical) lines</li>
+                    <li>Edit bounding boxes if needed for better player detection</li>
+                    <li>You can create multiple rallies in the same video</li>
+                    <li>Select a rally from the table to continue working on it</li>
                     <li>Jump directly to specific frames using the slider</li>
-                    <li>Continue working on previously marked rallies</li>
-                    <li>Delete rallies that you no longer need</li>
+                    <li>Click on frame numbers in the rally table to navigate quickly</li>
                     <li>Each rally tracks start/end frames and hitting moments</li>
-                    <li>Net position is shared across all rallies</li>
                   </ul>
                 </div>
               </div>

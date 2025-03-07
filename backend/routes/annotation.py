@@ -511,7 +511,8 @@ def update_frame_annotations():
         except Exception as e:
             print(f"Error processing frame with poses: {e}")
             return jsonify({"error": f"Error in pose processing: {str(e)}"}), 500
-            
+        
+        print(f'Frame {frame_number} updated successfully with {len(bboxes)} bounding boxes to {output_path}')
         return jsonify({
             "message": "Frame bounding boxes and poses updated successfully",
             "frame": frame_number,

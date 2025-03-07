@@ -37,6 +37,13 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { showToast } = useToast();
 
+  // Log key states for debugging
+  useEffect(() => {
+    console.log("BoundingBoxEditor - frameIndex:", frameIndex);
+    console.log("BoundingBoxEditor - imageUrl:", imageUrl);
+    console.log("BoundingBoxEditor - rawFrameUrl:", rawFrameUrl);
+  }, [frameIndex, imageUrl, rawFrameUrl]);
+
   // Convert pose frame URL to raw frame URL
   useEffect(() => {
     if (!imageUrl) return;
@@ -81,6 +88,8 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
             const frameFileName = imageUrl.split('/').pop() || '';
             const frameNumber = frameFileName.split('_')[0]; // Get the number part (e.g., "0001")
             const frameKey = `frame_${frameNumber}`;
+            
+            console.log("Looking for bbox data for frame key:", frameKey);
             
             if (poseData[frameKey] && poseData[frameKey].length > 0) {
               const boxes = poseData[frameKey].map((item: any) => ({
@@ -270,9 +279,12 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
     if (!canvas) return;
     
     const rect = canvas.getBoundingClientRect();
+    
+    // Calculate scaling factors between canvas display size and actual image size
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     
+    // Convert screen coordinates to image coordinates
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
     
@@ -303,9 +315,12 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
     if (!canvas) return;
     
     const rect = canvas.getBoundingClientRect();
+    
+    // Calculate scaling factors between canvas display size and actual image size
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     
+    // Convert screen coordinates to image coordinates
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
     
@@ -353,9 +368,12 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
     if (!canvas) return;
     
     const rect = canvas.getBoundingClientRect();
+    
+    // Calculate scaling factors between canvas display size and actual image size
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     
+    // Convert screen coordinates to image coordinates
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
     
@@ -391,27 +409,34 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
       const frameFileName = parts[parts.length - 1];
       const frameNumber = frameFileName.split('_')[0]; // Get the number part (e.g., "0001")
       
+      console.log("Saving bounding boxes for frame:", frameNumber);
+      console.log("Boxes to save:", boundingBoxes);
+      
       // Make sure we send only the frame number without extension
       const frameIdentifier = frameNumber.replace(/\.jpg$/, '');
       
+      // Even if boundingBoxes is empty, we still need to send an empty array
+      // to ensure the frame entry is properly updated in the pose coordinates file
       const response = await fetch("http://localhost:5000/api/annotation/update-frame", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           video_id: videoId,
           frame_number: frameIdentifier,
-          bboxes: boundingBoxes.map(box => ({
-            // Ensure we're using COCO format: [x, y, width, height]
-            bbox: [
-              Math.round(box.x), 
-              Math.round(box.y), 
-              Math.round(box.width), 
-              Math.round(box.height)
-            ],
-            label: box.label,
-            category_id: box.category_id,
-            confidence: 1.0 // Manual annotations get full confidence
-          }))
+          bboxes: boundingBoxes.length > 0 
+            ? boundingBoxes.map(box => ({
+                // Ensure we're using COCO format: [x, y, width, height]
+                bbox: [
+                  Math.round(box.x), 
+                  Math.round(box.y), 
+                  Math.round(box.width), 
+                  Math.round(box.height)
+                ],
+                label: box.label,
+                category_id: box.category_id,
+                confidence: 1.0 // Manual annotations get full confidence
+              }))
+            : [] // Send empty array explicitly when there are no boxes
         }),
       });
       
@@ -425,7 +450,7 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
       // Wait before completing to allow backend to process
       setTimeout(() => {
         onSaveComplete();
-      }, 2000);
+      }, 2000); // Wait for backend processing
     } catch (error) {
       console.error("Failed to save annotations:", error);
       showToast("Failed to save annotations", "error");

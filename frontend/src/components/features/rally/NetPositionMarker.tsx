@@ -14,7 +14,7 @@ const NetPositionMarker: React.FC<NetPositionMarkerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageSize, setImageSize] = useState<{ width: number, height: number }>({ width: 0, height: 0 });
   const [netPosition, setNetPosition] = useState<{ x: number, y: number } | null>(initialPosition);
-  const [isDrawing, setIsDrawing] = useState<boolean>(false);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
   const [imageLoaded, setImageLoaded] = useState<boolean>(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
 
@@ -45,16 +45,17 @@ const NetPositionMarker: React.FC<NetPositionMarkerProps> = ({
         
         // Draw initial net position if available
         if (netPosition) {
-          drawNetLine(ctx, netPosition.y);
+          drawNetPosition(ctx, netPosition.x, netPosition.y);
         } else if (initialPosition) {
           // Use initial position from props if available
           setNetPosition(initialPosition);
-          drawNetLine(ctx, initialPosition.y);
+          drawNetPosition(ctx, initialPosition.x, initialPosition.y);
         } else {
           // Default to center of image if no position is provided
+          const defaultX = canvas.width / 2;
           const defaultY = canvas.height / 2;
-          setNetPosition({ x: 0, y: defaultY });
-          drawNetLine(ctx, defaultY);
+          setNetPosition({ x: defaultX, y: defaultY });
+          drawNetPosition(ctx, defaultX, defaultY);
         }
       };
       
@@ -71,84 +72,124 @@ const NetPositionMarker: React.FC<NetPositionMarkerProps> = ({
     return () => clearTimeout(timer);
   }, [imageUrl]);
 
-  // Helper function to draw the net line
-  const drawNetLine = (ctx: CanvasRenderingContext2D, y: number) => {
+  // Helper function to draw the net position with both horizontal and vertical lines
+  const drawNetPosition = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
-    // Draw net line
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.strokeStyle = "rgba(255, 0, 0, 0.7)";
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    // Clear canvas first
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Add instructions text
-    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-    ctx.fillRect(10, 10, 500, 30);
-    ctx.fillStyle = "#000";
-    ctx.font = "16px Arial";
-    ctx.fillText("Click and drag horizontally to position the net line. Click 'Set' when done.", 20, 30);
+    // Redraw the image
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = imageUrl;
+    
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0);
+      
+      // Draw horizontal net line
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.strokeStyle = "rgba(255, 0, 0, 0.7)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      
+      // Draw vertical net line
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.strokeStyle = "rgba(0, 0, 255, 0.7)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      
+      // Draw intersection point
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, 2 * Math.PI);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // Add coordinates text
+      ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+      ctx.fillRect(10, 10, 200, 30);
+      ctx.fillStyle = "#000";
+      ctx.font = "16px Arial";
+      ctx.fillText(`Net Position: X: ${Math.round(x)}, Y: ${Math.round(y)}`, 20, 30);
+      
+      // Add instructions text
+      ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+      ctx.fillRect(10, canvas.height - 40, 500, 30);
+      ctx.fillStyle = "#000";
+      ctx.font = "16px Arial";
+      ctx.fillText("Click and drag to position the net. Click 'Set Net Position' when done.", 20, canvas.height - 20);
+    };
   };
 
-  // Handle mouse events for drawing the net line
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDrawing) return;
+  // Handle mouse events for positioning the net
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
     
     const canvas = canvasRef.current;
     if (!canvas) return;
     
     const rect = canvas.getBoundingClientRect();
-    const scaleY = canvas.height / rect.height;
     
+    // Store original image dimensions for accurate coordinate conversion
+    let imageWidth = canvas.width;
+    let imageHeight = canvas.height;
+    
+    // Calculate scale factors based on how the image is displayed in the canvas
+    const scaleX = imageWidth / rect.width;
+    const scaleY = imageHeight / rect.height;
+    
+    // Get coordinates in the original image space
+    const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
-    setNetPosition({ x: 0, y });
+    
+    // Store positions in the original image coordinate space
+    setNetPosition({ x, y });
     
     const ctx = canvas.getContext("2d");
     if (ctx) {
-      // Redraw the image first
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0);
-        drawNetLine(ctx, y);
-      };
-      
-      img.src = imageUrl;
+      drawNetPosition(ctx, x, y);
     }
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDrawing(true);
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
     
     const canvas = canvasRef.current;
     if (!canvas) return;
     
     const rect = canvas.getBoundingClientRect();
-    const scaleY = canvas.height / rect.height;
     
+    // Store original image dimensions for accurate coordinate conversion
+    let imageWidth = canvas.width;
+    let imageHeight = canvas.height;
+    
+    // Calculate scale factors based on how the image is displayed in the canvas
+    const scaleX = imageWidth / rect.width;
+    const scaleY = imageHeight / rect.height;
+    
+    // Get coordinates in the original image space
+    const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
-    setNetPosition({ x: 0, y });
+    
+    // Store positions in the original image coordinate space
+    setNetPosition({ x, y });
     
     const ctx = canvas.getContext("2d");
     if (ctx) {
-      // Redraw the image first
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0);
-        drawNetLine(ctx, y);
-      };
-      
-      img.src = imageUrl;
+      drawNetPosition(ctx, x, y);
     }
   };
 
   const handleMouseUp = () => {
-    setIsDrawing(false);
+    setIsDragging(false);
   };
 
   const handleConfirmNetPosition = () => {
@@ -210,8 +251,15 @@ const NetPositionMarker: React.FC<NetPositionMarkerProps> = ({
         </svg>
         <div>
           <h3 className="font-bold">Setting the Net Position</h3>
-          <div className="text-sm">Click and drag to position the horizontal net line. 
-          This helps establish the court orientation for all rally analysis.</div>
+          <div className="text-sm">
+            Click and drag to position the net lines:
+            <ul className="list-disc list-inside mt-1">
+              <li>The <span className="text-red-500 font-bold">red horizontal line</span> marks the net height</li>
+              <li>The <span className="text-blue-500 font-bold">blue vertical line</span> marks the net position</li>
+              <li>The white circle shows the intersection point</li>
+            </ul>
+            This helps establish the court orientation for all rally analysis.
+          </div>
         </div>
       </div>
     </div>
