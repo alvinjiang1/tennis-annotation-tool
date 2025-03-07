@@ -33,16 +33,11 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [rawFrameUrl, setRawFrameUrl] = useState<string>("");
+  const [imageLoaded, setImageLoaded] = useState<boolean>(false);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const { showToast } = useToast();
-
-  // Log key states for debugging
-  useEffect(() => {
-    console.log("BoundingBoxEditor - frameIndex:", frameIndex);
-    console.log("BoundingBoxEditor - imageUrl:", imageUrl);
-    console.log("BoundingBoxEditor - rawFrameUrl:", rawFrameUrl);
-  }, [frameIndex, imageUrl, rawFrameUrl]);
 
   // Convert pose frame URL to raw frame URL
   useEffect(() => {
@@ -59,6 +54,33 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
     console.log("Setting raw frame URL:", rawUrl);
     setRawFrameUrl(rawUrl);
   }, [imageUrl, videoId]);
+
+  // Setup hidden image element to load the actual image size
+  useEffect(() => {
+    if (!rawFrameUrl) return;
+    
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      setImageSize({ 
+        width: img.naturalWidth, 
+        height: img.naturalHeight 
+      });
+      setImageLoaded(true);
+      console.log(`Image loaded with size: ${img.naturalWidth}x${img.naturalHeight}`);
+    };
+    img.onerror = (e) => {
+      console.error("Error loading image:", e);
+      showToast("Failed to load image for editing", "error");
+    };
+    
+    const timestamp = new Date().getTime();
+    img.src = `${rawFrameUrl}?t=${timestamp}`;
+    
+    if (imgRef.current) {
+      imgRef.current.src = img.src;
+    }
+  }, [rawFrameUrl]);
 
   // Fetch existing bounding boxes and categories
   useEffect(() => {
@@ -92,16 +114,21 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
             console.log("Looking for bbox data for frame key:", frameKey);
             
             if (poseData[frameKey] && poseData[frameKey].length > 0) {
-              const boxes = poseData[frameKey].map((item: any) => ({
-                x: item.bbox[0],
-                y: item.bbox[1],
-                width: item.bbox[2],
-                height: item.bbox[3],
-                label: item.label,
-                category_id: getCategoryIdFromLabel(item.label, categories)
-              }));
+              const boxes = poseData[frameKey].map((item: any) => {
+                const bbox = item.bbox;
+                // Ensure we're using [x, y, width, height] format
+                return {
+                  x: bbox[0],
+                  y: bbox[1],
+                  width: bbox[2],
+                  height: bbox[3],
+                  label: item.label,
+                  category_id: getCategoryIdFromLabel(item.label, categories)
+                };
+              });
+              
               setBoundingBoxes(boxes);
-              console.log(`Loaded ${boxes.length} boxes for frame ${frameKey}`);
+              console.log(`Loaded ${boxes.length} boxes for frame ${frameKey}:`, boxes);
             }
           }
         } catch (error) {
@@ -138,8 +165,6 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
     };
     
     fetchData();
-    // Only run this effect when rawFrameUrl or videoId change, not on every render
-    // Don't include categories in the dependency array
   }, [imageUrl, videoId, rawFrameUrl]);
   
   // Helper function to get category ID from label
@@ -152,79 +177,70 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
     return category ? category.id : 1; // Default to 1 if no match
   };
 
-  // Initialize canvas and draw bounding boxes
+  // Initialize canvas and draw bounding boxes once BOTH image and boxes are loaded
   useEffect(() => {
-    if (!rawFrameUrl) return;
+    if (!rawFrameUrl || !imageLoaded || boundingBoxes.length === 0) return;
     
-    let isMounted = true;
-    const loadImage = async () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-      // Pre-set initial canvas size to avoid scaling issues
-      canvas.width = 1280;  // Default width
-      canvas.height = 720;  // Default height
-      
-      // Clear the canvas
+    // Set canvas dimensions to match the actual image
+    canvas.width = imageSize.width;
+    canvas.height = imageSize.height;
+    
+    console.log(`Setting canvas size to ${canvas.width}x${canvas.height}`);
+    console.log(`Drawing ${boundingBoxes.length} bounding boxes`);
+    
+    // Draw image
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    
+    img.onload = () => {
+      // Draw the image
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       
-      // Show loading indicator
-      ctx.fillStyle = "#f0f0f0";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#000000";
-      ctx.font = "24px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText("Loading image...", canvas.width / 2, canvas.height / 2);
+      // Draw all bounding boxes
+      boundingBoxes.forEach((box, index) => {
+        console.log(`Drawing box ${index}: x=${box.x}, y=${box.y}, w=${box.width}, h=${box.height}`);
+        drawBox(ctx, box, index === selectedBoxIndex);
+      });
+    };
+    
+    // Add cache-busting parameter
+    const timestamp = new Date().getTime();
+    img.src = `${rawFrameUrl}?t=${timestamp}`;
+    
+  }, [rawFrameUrl, boundingBoxes, selectedBoxIndex, imageLoaded, imageSize]);
 
-      try {
-        const img = new Image();
-        img.crossOrigin = "anonymous";  // Add this to handle CORS issues
-        
-        img.onload = () => {
-          if (!isMounted) return;
-          
-          // Set canvas dimensions to match image
-          setImageSize({ width: img.width, height: img.height });
-          canvas.width = img.width;
-          canvas.height = img.height;
-          
-          // Draw image
-          ctx.drawImage(img, 0, 0);
-          
-          // Draw all bounding boxes
-          boundingBoxes.forEach((box, index) => {
-            drawBox(ctx, box, index === selectedBoxIndex);
-          });
-        };
-        
-        img.onerror = (e) => {
-          if (!isMounted) return;
-          console.error("Error loading image:", e);
-          ctx.fillStyle = "#ffcccc";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle = "#FF0000";
-          ctx.textAlign = "center";
-          ctx.fillText("Error loading image", canvas.width / 2, canvas.height / 2);
-        };
-        
-        // Set src after setting up handlers, with cache-busting
-        const timestamp = new Date().getTime();
-        const urlWithCache = `${rawFrameUrl}?t=${timestamp}`;
-        img.src = urlWithCache;
-      } catch (error) {
-        console.error("Error in canvas initialization:", error);
-      }
+  // Redraw canvas when needed (when selection changes, etc.)
+  const redrawCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    
+    // Draw image
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    
+    img.onload = () => {
+      // Draw the image
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      // Draw all bounding boxes
+      boundingBoxes.forEach((box, index) => {
+        drawBox(ctx, box, index === selectedBoxIndex);
+      });
     };
     
-    loadImage();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [rawFrameUrl, boundingBoxes, selectedBoxIndex]);
+    img.src = rawFrameUrl;
+  };
 
   // Helper function to draw a bounding box
   const drawBox = (
@@ -240,8 +256,7 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
     ctx.strokeStyle = isSelected ? "#FFFFFF" : colors[colorIndex];
     ctx.lineWidth = isSelected ? 3 : 2;
     
-    // Draw the box - ensure we're using correct box format
-    // COCO format: x, y, width, height
+    // Draw the box
     ctx.strokeRect(box.x, box.y, box.width, box.height);
     
     // Draw label background
@@ -324,37 +339,25 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
     
-    const width = Math.abs(x - startPos.x);
-    const height = Math.abs(y - startPos.y);
-    
-    // Redraw all boxes plus the one being drawn
     const ctx = canvas.getContext("2d");
     if (ctx) {
-      // Clear and redraw image
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.src = rawFrameUrl;
+      // Redraw the canvas
+      redrawCanvas();
       
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0);
-        
-        // Draw existing boxes
-        boundingBoxes.forEach((box, index) => {
-          drawBox(ctx, box, index === selectedBoxIndex);
-        });
-        
-        // Draw new box
-        const newBox = {
-          x: Math.min(startPos.x, x),
-          y: Math.min(startPos.y, y),
-          width,
-          height,
-          label: categories.find(c => c.id === selectedCategory)?.name || "Player",
-          category_id: selectedCategory
-        };
-        
-        drawBox(ctx, newBox, true);
+      // Draw the new box being created
+      const width = Math.abs(x - startPos.x);
+      const height = Math.abs(y - startPos.y);
+      
+      const newBox = {
+        x: Math.min(startPos.x, x),
+        y: Math.min(startPos.y, y),
+        width,
+        height,
+        label: categories.find(c => c.id === selectedCategory)?.name || "Player",
+        category_id: selectedCategory
       };
+      
+      drawBox(ctx, newBox, true);
     }
   };
 
@@ -415,28 +418,28 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
       // Make sure we send only the frame number without extension
       const frameIdentifier = frameNumber.replace(/\.jpg$/, '');
       
-      // Even if boundingBoxes is empty, we still need to send an empty array
-      // to ensure the frame entry is properly updated in the pose coordinates file
+      // Prepare the bounding boxes in the format the backend expects
+      const boxesForBackend = boundingBoxes.map(box => ({
+        // Backend expects [x, y, width, height] - COCO format
+        bbox: [
+          Math.round(box.x), 
+          Math.round(box.y), 
+          Math.round(box.width), 
+          Math.round(box.height)
+        ],
+        label: box.label,
+        category_id: box.category_id,
+        confidence: 1.0 // Manual annotations get full confidence
+      }));
+      
+      // Send the data to the backend
       const response = await fetch("http://localhost:5000/api/annotation/update-frame", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           video_id: videoId,
           frame_number: frameIdentifier,
-          bboxes: boundingBoxes.length > 0 
-            ? boundingBoxes.map(box => ({
-                // Ensure we're using COCO format: [x, y, width, height]
-                bbox: [
-                  Math.round(box.x), 
-                  Math.round(box.y), 
-                  Math.round(box.width), 
-                  Math.round(box.height)
-                ],
-                label: box.label,
-                category_id: box.category_id,
-                confidence: 1.0 // Manual annotations get full confidence
-              }))
-            : [] // Send empty array explicitly when there are no boxes
+          bboxes: boxesForBackend
         }),
       });
       
@@ -444,6 +447,9 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
         const errorData = await response.json();
         throw new Error(errorData.message || "Failed to save annotations");
       }
+      
+      const successData = await response.json();
+      console.log("Save response:", successData);
       
       showToast("Bounding boxes saved successfully", "success");
       
@@ -496,6 +502,14 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
 
   return (
     <div className="flex flex-col items-center">
+      {/* Hidden image for reference */}
+      <img 
+        ref={imgRef} 
+        src={rawFrameUrl} 
+        style={{ display: 'none' }} 
+        alt="hidden reference"
+      />
+      
       <div className="w-full max-w-4xl mb-4">
         <div className="flex justify-between items-center mb-2">
           <h3 className="font-bold">Edit Bounding Boxes</h3>
@@ -522,6 +536,8 @@ const BoundingBoxEditor: React.FC<BoundingBoxEditorProps> = ({
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
+            width={imageSize.width || 1280}
+            height={imageSize.height || 720}
           ></canvas>
         </div>
       </div>

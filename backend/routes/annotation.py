@@ -432,16 +432,74 @@ def get_pose_coordinates(video_id):
         print(f"Error getting pose coordinates: {e}")
         return jsonify({"error": str(e)}), 500
 
+@annotation_router.route("/get-bboxes-direct/<video_id>/<frame_number>", methods=["GET"])
+def get_direct_bboxes(video_id, frame_number):
+    """Get bounding boxes directly from the bbox file for a specific frame"""
+    try:
+        # Path to the bbox file
+        bbox_file = os.path.join(DATA_DIR, "bbox", f"{video_id}_boxes.json")
+        
+        if not os.path.exists(bbox_file):
+            return jsonify({"error": f"Bounding box file not found for video {video_id}"}), 404
+        
+        # Load the bounding boxes
+        with open(bbox_file, 'r') as f:
+            boxes_data = json.load(f)
+        
+        # Check if we have boxes for this frame
+        if frame_number not in boxes_data:
+            return jsonify({
+                "bboxes": [], 
+                "message": f"No bounding boxes found for frame {frame_number}"
+            }), 200
+            
+        # Get the boxes for this frame
+        frame_boxes = boxes_data[frame_number]
+        
+        # Convert to the format expected by the frontend
+        formatted_boxes = []
+        for box in frame_boxes:
+            # Check if bbox field exists
+            if "bbox" not in box:
+                continue
+                
+            bbox = box["bbox"]
+            # Format is [x, y, width, height]
+            formatted_boxes.append({
+                "x": bbox[0],
+                "y": bbox[1],
+                "width": bbox[2],
+                "height": bbox[3],
+                "label": box.get("label", "Player"),
+                "category_id": box.get("category_id", 1)
+            })
+        
+        print(f"Found {len(formatted_boxes)} boxes for frame {frame_number} in video {video_id}")
+        for i, box in enumerate(formatted_boxes):
+            print(f"  Box {i+1}: x={box['x']}, y={box['y']}, w={box['width']}, h={box['height']}")
+            
+        return jsonify({
+            "bboxes": formatted_boxes,
+            "frame_number": frame_number,
+            "video_id": video_id
+        }), 200
+            
+    except Exception as e:
+        print(f"Error retrieving direct bboxes: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+    
 @annotation_router.route("/update-frame", methods=["POST"])
 def update_frame_annotations():
-    """Update bounding boxes for a specific frame - direct approach"""
+    """Update bounding boxes for a specific frame - with proper logging"""
     try:
         data = request.json
         video_id = data.get("video_id")
         frame_number = data.get("frame_number")
         bboxes = data.get("bboxes", [])
         
-        if not all([video_id, frame_number, bboxes]):
+        if not all([video_id, frame_number]):
             return jsonify({"error": "Missing required fields"}), 400
             
         # Path to raw frame
@@ -453,12 +511,21 @@ def update_frame_annotations():
         boxes_path = os.path.join(DATA_DIR, "bbox", f"{video_id}_boxes.json")
         os.makedirs(os.path.dirname(boxes_path), exist_ok=True)
         
+        # Log the incoming data
+        print(f"=====================================")
+        print(f"Updating bboxes for frame {frame_number} of video {video_id}")
+        print(f"Received {len(bboxes)} bounding boxes:")
+        for i, bbox in enumerate(bboxes):
+            print(f"  Box {i+1}: {bbox}")
+        
         # Load existing boxes or create new dictionary
         if os.path.exists(boxes_path):
             with open(boxes_path, 'r') as f:
                 boxes_data = json.load(f)
+                print(f"Loaded {len(boxes_data)} existing frames from {boxes_path}")
         else:
             boxes_data = {}
+            print(f"No existing bbox data found, creating new")
             
         # Update boxes for this frame
         boxes_data[frame_number] = bboxes
@@ -466,6 +533,7 @@ def update_frame_annotations():
         # Save updated boxes
         with open(boxes_path, 'w') as f:
             json.dump(boxes_data, f, indent=2)
+        print(f"Saved {len(bboxes)} boxes for frame {frame_number} to {boxes_path}")
             
         # Path to save processed frames with poses
         output_dir = os.path.join(POSE_FRAMES_DIR, video_id)
@@ -474,6 +542,10 @@ def update_frame_annotations():
         # Run pose estimation on the frame
         try:
             from models.pose_estimation.tennis_analyzer import TennisPlayerAnalyzer
+            
+            print(f"Initializing TennisPlayerAnalyzer with:")
+            print(f"  frames_dir: {os.path.join(RAW_FRAMES_DIR, video_id)}")
+            print(f"  bbox_file: {boxes_path}")
             
             analyzer = TennisPlayerAnalyzer(
                 frames_dir=os.path.join(RAW_FRAMES_DIR, video_id),
@@ -488,31 +560,52 @@ def update_frame_annotations():
             if os.path.exists(pose_coordinates_path):
                 with open(pose_coordinates_path, 'r') as f:
                     all_poses = json.load(f)
+                    frame_key = f"frame_{frame_number}"
+                    if frame_key in all_poses:
+                        print(f"Found existing poses for {frame_key}: {len(all_poses[frame_key])} entries")
+                    else:
+                        print(f"No existing poses found for {frame_key}")
             else:
                 all_poses = {}
+                print(f"No existing pose coordinates file found, creating new")
                 
             # Process just this specific frame
-            frame_with_poses, _, all_poses = analyzer.process_frame(
+            print(f"Processing frame {frame_number}...")
+            frame_with_poses, processed_frame_number, all_poses = analyzer.process_frame(
                 frame_path=Path(frame_path),
                 all_poses=all_poses
             )
             
+            # Verify the results
+            frame_key = f"frame_{frame_number}"
+            if frame_key in all_poses:
+                print(f"After processing: {len(all_poses[frame_key])} poses for {frame_key}")
+            else:
+                print(f"Warning: No poses generated for {frame_key}")
+            
             # Save updated pose file
             with open(pose_coordinates_path, 'w') as f:
                 json.dump(all_poses, f, indent=2)
+            print(f"Saved pose coordinates to {pose_coordinates_path}")
                 
             # Save the processed frame
             output_path = os.path.join(output_dir, f"{frame_number}_pred.jpg")
             if frame_with_poses is not None:
                 cv2.imwrite(str(output_path), frame_with_poses)
+                print(f"Saved processed frame to {output_path}")
             else:
+                print(f"Error: No frame was generated")
                 return jsonify({"error": "Failed to process frame with poses"}), 500
                 
         except Exception as e:
             print(f"Error processing frame with poses: {e}")
+            import traceback
+            traceback.print_exc()
             return jsonify({"error": f"Error in pose processing: {str(e)}"}), 500
         
-        print(f'Frame {frame_number} updated successfully with {len(bboxes)} bounding boxes to {output_path}')
+        print(f'Frame {frame_number} updated successfully with {len(bboxes)} bounding boxes')
+        print(f"=====================================")
+        
         return jsonify({
             "message": "Frame bounding boxes and poses updated successfully",
             "frame": frame_number,
@@ -521,4 +614,6 @@ def update_frame_annotations():
         
     except Exception as e:
         print(f"Error updating frame annotations: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
