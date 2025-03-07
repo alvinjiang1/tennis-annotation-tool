@@ -41,6 +41,7 @@ const RallyAnalysisView: React.FC = () => {
   });
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [imageSize, setImageSize] = useState<{ width: number, height: number }>({ width: 1280, height: 720 });
+  const [showNetLines, setShowNetLines] = useState<boolean>(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const { showToast } = useToast();
@@ -326,6 +327,15 @@ const RallyAnalysisView: React.FC = () => {
                     {isSettingNet ? 'Cancel' : 'Set Net Position'}
                   </button>
                   
+                  {netPosition && (
+                    <button 
+                      className="btn btn-sm btn-outline"
+                      onClick={() => setShowNetLines(!showNetLines)}
+                    >
+                      {showNetLines ? 'Hide Net Lines' : 'Show Net Lines'}
+                    </button>
+                  )}
+                  
                   <button 
                     className={`btn btn-sm ${isEditing ? 'btn-error' : 'btn-outline'}`}
                     onClick={() => setIsEditing(!isEditing)}
@@ -439,8 +449,8 @@ const RallyAnalysisView: React.FC = () => {
                       }}
                     />
                     
-                    {/* Net position indicator */}
-                    {netPosition && (
+                    {/* Net position indicator - only show if showNetLines is true */}
+                    {netPosition && showNetLines && (
                       <>
                         {/* Calculate scaled positions based on the actual displayed image size */}
                         <div 
@@ -675,6 +685,7 @@ const RallyAnalysisView: React.FC = () => {
                   <h4 className="font-semibold mb-2">Tips & Features</h4>
                   <ul className="list-disc list-inside space-y-1 text-sm">
                     <li>The net position is shown with red (horizontal) and blue (vertical) lines</li>
+                    <li>You can toggle the visibility of net lines using the "Hide Net Lines" button</li>
                     <li>Edit bounding boxes if needed for better player detection</li>
                     <li>You can create multiple rallies in the same video</li>
                     <li>Select a rally from the table to continue working on it</li>
@@ -774,7 +785,7 @@ const VideoSelector: React.FC<VideoSelectorProps> = ({ onSelectVideo, currentVid
       
       {filteredVideos.length === 0 && !loading && (
         <div className="alert alert-warning mt-4">
-          <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+          <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 h-6" fill="none" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <span>No processed videos found. Please complete training and inference first.</span>
@@ -784,4 +795,4 @@ const VideoSelector: React.FC<VideoSelectorProps> = ({ onSelectVideo, currentVid
   );
 };
 
-export default RallyAnalysisView;
+export default RallyAnalysisView
