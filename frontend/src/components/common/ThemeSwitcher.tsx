@@ -3,10 +3,16 @@ import { useEffect, useState } from "react";
 const themes = ["light", "dark", "forest", "synthwave", "dracula"];
 
 const ThemeSwitcher = () => {
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState(() => {
+    // Try to get the theme from localStorage or use "dark" as default
+    return localStorage.getItem("theme") || "dark";
+  });
 
   useEffect(() => {
+    // Apply theme to the document
     document.documentElement.setAttribute("data-theme", theme);
+    // Store in localStorage for persistence
+    localStorage.setItem("theme", theme);
   }, [theme]);
 
   return (
