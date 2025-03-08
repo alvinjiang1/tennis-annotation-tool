@@ -28,7 +28,7 @@ def get_random_court_position(net_position, player_position):
     # Otherwise return random position
     return random.choice(["near_deuce", "near_ad", "far_deuce", "far_ad"])
 
-def generate_random_shot_label(frame_index, hit_type=None, net_position=None, player_position=None):
+def generate_random_shot_label(frame_index, hit_type=None, net_position=None, player_position=None, handedness="unknown"):
     """Generate a shot label based on position in rally and available info"""
     # Court position - either determined from actual positions or random
     court_position = get_random_court_position(net_position, player_position)
@@ -45,7 +45,22 @@ def generate_random_shot_label(frame_index, hit_type=None, net_position=None, pl
         shot_type = hit_type
     
     # Shot technique - forehand/backhand
-    technique = random.choice(["fh", "bh", "-"])
+    # For left-handed players, adjust the forehand/backhand probability based on court position
+    if handedness == "left":
+        # Left-handed players are more likely to hit backhand on ad court, forehand on deuce court
+        if "deuce" in court_position:
+            technique = random.choices(["fh", "bh", "-"], weights=[0.7, 0.3, 0.0])[0]
+        else:  # ad court
+            technique = random.choices(["fh", "bh", "-"], weights=[0.3, 0.7, 0.0])[0]
+    elif handedness == "right":
+        # Right-handed players are more likely to hit forehand on ad court, backhand on deuce court
+        if "deuce" in court_position:
+            technique = random.choices(["fh", "bh", "-"], weights=[0.3, 0.7, 0.0])[0]
+        else:  # ad court
+            technique = random.choices(["fh", "bh", "-"], weights=[0.7, 0.3, 0.0])[0]
+    else:
+        # Unknown handedness - equal chance
+        technique = random.choice(["fh", "bh", "-"])
     
     # Shot style depends on technique
     if technique == "fh" or technique == "bh":
@@ -53,11 +68,38 @@ def generate_random_shot_label(frame_index, hit_type=None, net_position=None, pl
     else:
         style = "-"  # No style for serves without technique
     
-    # Direction - varies based on shot type
+    # Direction varies based on shot type and handedness
     if shot_type == "serve":
         direction = random.choice(["CC", "-"])
     else:
-        direction = random.choice(["CC", "DL", "IO", "II"])
+        # Shot direction tendencies vary based on handedness and technique
+        if handedness == "left" and technique == "fh":
+            # Left-handed forehand - more likely to go down the line from ad court
+            if "ad" in court_position:
+                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.3, 0.5, 0.1, 0.1])[0]
+            else:
+                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.5, 0.3, 0.1, 0.1])[0]
+        elif handedness == "left" and technique == "bh":
+            # Left-handed backhand - more likely to go down the line from deuce court
+            if "deuce" in court_position:
+                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.3, 0.5, 0.1, 0.1])[0]
+            else:
+                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.5, 0.3, 0.1, 0.1])[0]
+        elif handedness == "right" and technique == "fh":
+            # Right-handed forehand - more likely to go down the line from deuce court
+            if "deuce" in court_position:
+                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.3, 0.5, 0.1, 0.1])[0]
+            else:
+                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.5, 0.3, 0.1, 0.1])[0]
+        elif handedness == "right" and technique == "bh":
+            # Right-handed backhand - more likely to go down the line from ad court
+            if "ad" in court_position:
+                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.3, 0.5, 0.1, 0.1])[0]
+            else:
+                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.5, 0.3, 0.1, 0.1])[0]
+        else:
+            # Unknown handedness - equal chances
+            direction = random.choice(["CC", "DL", "IO", "II"])
     
     # Outcome
     # Last shot in rally more likely to be an error or winner
@@ -86,11 +128,21 @@ def extract_player_descriptions(video_id):
             # Get player descriptions from categories
             if "categories" in annotations and len(annotations["categories"]) > 0:
                 descriptions = {}
+                handedness_info = {}
+                
                 for category in annotations["categories"]:
                     player_id = f"p{category['id']}"
                     name = category['name']
+                    handedness = category.get('handedness', 'unknown')
+                    
                     descriptions[player_id] = name
-                return descriptions
+                    handedness_info[player_id] = handedness
+                
+                # Add handedness info to output
+                return {
+                    "descriptions": descriptions,
+                    "handedness": handedness_info
+                }
     except Exception as e:
         print(f"Error extracting player descriptions: {e}")
     
@@ -101,8 +153,11 @@ def generate_random_player_descriptions():
     """Generate random player descriptions"""
     colors = ["red", "blue", "black", "white", "green", "yellow", "purple", "orange", "gray"]
     items = ["shirt", "shorts", "shoes", "hat", "wristband"]
+    handedness_options = ["right", "left", "unknown"]
     
     descriptions = {}
+    handedness_info = {}
+    
     for i in range(1, 5):  # Generate for p1, p2, p3, p4
         color1 = random.choice(colors)
         color2 = random.choice(colors)
@@ -115,8 +170,12 @@ def generate_random_player_descriptions():
             item2 = random.choice(items)
             
         descriptions[f"p{i}"] = f"{color1} {item1} {color2} {item2}"
+        handedness_info[f"p{i}"] = random.choice(handedness_options)
     
-    return descriptions
+    return {
+        "descriptions": descriptions,
+        "handedness": handedness_info
+    }
 
 def get_player_from_hitting_moment(hitting_moment, poses=None):
     """Extract player info from hitting moment data and poses"""
@@ -137,12 +196,33 @@ def get_player_from_hitting_moment(hitting_moment, poses=None):
     # Fallback to a random player
     return f"p{random.randint(1, 4)}"
 
+def get_player_handedness(player_id, categories):
+    """Get handedness for a player from category data"""
+    if not categories:
+        return "unknown"
+    
+    # Strip the 'p' prefix if present and convert to integer
+    if isinstance(player_id, str) and player_id.startswith('p'):
+        player_id = int(player_id[1:])
+    else:
+        player_id = int(player_id)
+    
+    # Find the player in categories
+    for category in categories:
+        if category.get('id') == player_id:
+            return category.get('handedness', 'unknown')
+    
+    return "unknown"
+
 def generate_labels(video_id):
     """Generate shot labels for tennis rallies"""
     # Construct paths for source data
     rallies_path = os.path.join(RALLIES_PATH, f'{video_id}_rallies.json')
     pose_path = os.path.join(POSE_COORDINATES, f'{video_id}_pose.json')
     output_path = os.path.join(OUTPUT_PATH, f"{video_id}_labelled.json")
+    
+    # Get annotation file for player categories
+    annotation_file = os.path.join(ANNOTATIONS_DIR, f"{video_id}_coco_annotations.json")
     
     # Check if required files exist
     if not os.path.exists(rallies_path):
@@ -156,6 +236,17 @@ def generate_labels(video_id):
         return jsonify({"error": f"Invalid JSON in rally file: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Error reading rally file: {str(e)}"}), 500
+    
+    # Load player categories to get handedness info
+    categories = []
+    try:
+        if os.path.exists(annotation_file):
+            with open(annotation_file, 'r') as f:
+                annotations = json.load(f)
+                if "categories" in annotations:
+                    categories = annotations["categories"]
+    except Exception as e:
+        print(f"Error loading player categories: {e}")
     
     # Load pose data if available
     pose_data = None
@@ -199,7 +290,10 @@ def generate_labels(video_id):
             frame_number = moment.get("frameNumber", 0)
             
             # Get the player from the hitting moment data
-            player = get_player_from_hitting_moment(moment, pose_data)
+            player_id = get_player_from_hitting_moment(moment, pose_data)
+            
+            # Get player handedness from the categories
+            handedness = get_player_handedness(player_id, categories)
             
             # Determine hit type based on position in rally
             hit_type = None
@@ -218,7 +312,8 @@ def generate_labels(video_id):
                 i, 
                 hit_type=hit_type,
                 net_position=net_position,
-                player_position=player_position
+                player_position=player_position,
+                handedness=handedness
             )
             
             # Set outcome for last shot in rally
@@ -229,10 +324,11 @@ def generate_labels(video_id):
             
             # Add event with all available data
             event = {
-                "player": player,
+                "player": player_id,
                 "frame": frame_number,
                 "label": shot_info["label"],
-                "outcome": shot_info["outcome"]
+                "outcome": shot_info["outcome"],
+                "handedness": handedness  # Include handedness in output for reference
             }
             
             # Add additional data if available (position, bbox, etc.)

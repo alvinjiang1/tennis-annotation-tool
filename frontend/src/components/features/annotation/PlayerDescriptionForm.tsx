@@ -4,6 +4,7 @@ import { useToast } from '../../../hooks';
 interface Player {
   id: number;
   name: string;
+  handedness: "right" | "left" | "unknown";
 }
 
 interface PlayerDescriptionFormProps {
@@ -18,10 +19,10 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({
   editMode = false // Default to false for backward compatibility
 }) => {
   const [players, setPlayers] = useState<Player[]>([
-    { id: 1, name: "" },
-    { id: 2, name: "" },
-    { id: 3, name: "" },
-    { id: 4, name: "" }
+    { id: 1, name: "", handedness: "unknown" },
+    { id: 2, name: "", handedness: "unknown" },
+    { id: 3, name: "", handedness: "unknown" },
+    { id: 4, name: "", handedness: "unknown" }
   ]);
   const [originalPlayers, setOriginalPlayers] = useState<Player[]>([]); // Store original data for comparison
   const [isLoading, setIsLoading] = useState(true);
@@ -45,13 +46,15 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({
             // Map categories to our player structure
             const loadedPlayers = data.categories.map((cat: any) => ({
               id: cat.id,
-              name: cat.name
+              name: cat.name,
+              // Extract handedness from metadata if available, default to unknown
+              handedness: cat.handedness || "unknown"
             }));
             
             // Ensure we always have 4 players
             const updatedPlayers = [...loadedPlayers];
             while (updatedPlayers.length < 4) {
-              updatedPlayers.push({ id: updatedPlayers.length + 1, name: "" });
+              updatedPlayers.push({ id: updatedPlayers.length + 1, name: "", handedness: "unknown" });
             }
             
             setPlayers(updatedPlayers);
@@ -82,6 +85,14 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({
     );
   };
 
+  const handleHandednessChange = (id: number, handedness: "right" | "left" | "unknown") => {
+    setPlayers(prev => 
+      prev.map(player => 
+        player.id === id ? { ...player, handedness } : player
+      )
+    );
+  };
+
   const handleSubmit = async () => {
     // Validate: all players must have descriptions
     const emptyDescriptions = players.filter(p => !p.name || p.name.trim() === '');
@@ -101,11 +112,12 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({
     try {
       setIsSaving(true);
       
-      // We'll send the categories in COCO format
+      // We'll send the categories in COCO format with handedness
       const categories = players.map(player => ({
         id: player.id,
         name: player.name,
-        supercategory: "person"
+        supercategory: "person",
+        handedness: player.handedness // Add handedness field
       }));
       
       const response = await fetch(`http://localhost:5000/api/annotation/save-categories`, {
@@ -123,7 +135,8 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({
       
       // Check if we actually made changes
       const madeChanges = players.some((player, idx) => 
-        player.name !== originalPlayers[idx]?.name
+        player.name !== originalPlayers[idx]?.name || 
+        player.handedness !== originalPlayers[idx]?.handedness
       );
       
       const message = editMode 
@@ -164,23 +177,65 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({
       
       <p className="text-sm mb-4">
         {editMode 
-          ? 'Update the descriptions for each player in the video. This will affect all annotations.' 
-          : 'Provide a unique description for each player in the video. This will be used for all annotations.'}
+          ? 'Update the descriptions and handedness for each player in the video. This will affect all annotations.' 
+          : 'Provide a unique description and select handedness for each player in the video.'}
       </p>
       
-      <div className="space-y-4">
+      <div className="space-y-6">
         {players.map((player) => (
-          <div key={player.id} className="form-control">
-            <label className="label">
-              <span className="label-text font-medium">Player {player.id}</span>
-            </label>
-            <input
-              type="text"
-              className="input input-bordered w-full"
-              placeholder="e.g., Blue shirt red shoes"
-              value={player.name}
-              onChange={(e) => handleNameChange(player.id, e.target.value)}
-            />
+          <div key={player.id} className="border-b pb-4">
+            <div className="form-control mb-2">
+              <label className="label">
+                <span className="label-text font-medium">Player {player.id}</span>
+              </label>
+              <input
+                type="text"
+                className="input input-bordered w-full"
+                placeholder="e.g., Blue shirt red shoes"
+                value={player.name}
+                onChange={(e) => handleNameChange(player.id, e.target.value)}
+              />
+            </div>
+            
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">Handedness</span>
+              </label>
+              <div className="flex gap-4">
+                <label className="label cursor-pointer justify-start gap-2">
+                  <input 
+                    type="radio" 
+                    name={`handedness-${player.id}`} 
+                    className="radio radio-sm" 
+                    checked={player.handedness === "right"}
+                    onChange={() => handleHandednessChange(player.id, "right")}
+                  />
+                  <span className="label-text">Right-handed</span>
+                </label>
+                
+                <label className="label cursor-pointer justify-start gap-2">
+                  <input 
+                    type="radio" 
+                    name={`handedness-${player.id}`} 
+                    className="radio radio-sm" 
+                    checked={player.handedness === "left"}
+                    onChange={() => handleHandednessChange(player.id, "left")}
+                  />
+                  <span className="label-text">Left-handed</span>
+                </label>
+                
+                <label className="label cursor-pointer justify-start gap-2">
+                  <input 
+                    type="radio" 
+                    name={`handedness-${player.id}`} 
+                    className="radio radio-sm" 
+                    checked={player.handedness === "unknown"}
+                    onChange={() => handleHandednessChange(player.id, "unknown")}
+                  />
+                  <span className="label-text">Unknown</span>
+                </label>
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -206,7 +261,7 @@ const PlayerDescriptionForm: React.FC<PlayerDescriptionFormProps> = ({
               <span className="loading loading-spinner loading-xs"></span>
               Saving...
             </>
-          ) : (editMode ? 'Update Descriptions' : 'Save Player Descriptions')}
+          ) : (editMode ? 'Update Players' : 'Save Player Descriptions')}
         </button>
       </div>
     </div>

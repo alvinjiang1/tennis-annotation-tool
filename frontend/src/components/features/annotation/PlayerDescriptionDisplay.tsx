@@ -4,6 +4,7 @@ interface Category {
   id: number;
   name: string;
   supercategory?: string;
+  handedness?: "right" | "left" | "unknown";
 }
 
 interface PlayerDescriptionDisplayProps {
@@ -41,6 +42,28 @@ const PlayerDescriptionDisplay: React.FC<PlayerDescriptionDisplayProps> = ({ vid
     fetchCategories();
   }, [videoId]);
 
+  const getHandednessIcon = (handedness?: string) => {
+    switch (handedness) {
+      case "right":
+        return "👉"; // Right pointing hand emoji
+      case "left":
+        return "👈"; // Left pointing hand emoji
+      default:
+        return "❓"; // Question mark for unknown
+    }
+  };
+
+  const getHandednessLabel = (handedness?: string) => {
+    switch (handedness) {
+      case "right":
+        return "Right-handed";
+      case "left":
+        return "Left-handed";
+      default:
+        return "Unknown";
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center p-4">
@@ -60,12 +83,20 @@ const PlayerDescriptionDisplay: React.FC<PlayerDescriptionDisplayProps> = ({ vid
   return (
     <ul className="space-y-2">
       {categories.map((category, index) => (
-        <li key={category.id} className="flex items-center p-2 bg-base-100 rounded-md shadow-sm">
-          <div 
-            className="w-4 h-4 rounded-full mr-3" 
-            style={{ backgroundColor: colors[(category.id - 1) % colors.length] }}
-          ></div>
-          <span className="font-medium">{category.name}</span>
+        <li key={category.id} className="flex justify-between p-2 bg-base-100 rounded-md shadow-sm">
+          <div className="flex items-center">
+            <div 
+              className="w-4 h-4 rounded-full mr-3" 
+              style={{ backgroundColor: colors[(category.id - 1) % colors.length] }}
+            ></div>
+            <span className="font-medium">{category.name}</span>
+          </div>
+          <div className="flex items-center">
+            <span className="text-sm opacity-75 mr-2">{getHandednessLabel(category.handedness)}</span>
+            <span className="text-lg" title={getHandednessLabel(category.handedness)}>
+              {getHandednessIcon(category.handedness)}
+            </span>
+          </div>
         </li>
       ))}
     </ul>

@@ -50,45 +50,55 @@ const ShotGeneratorView = () => {
       }
     };
     
-    fetchVideos();});
+    fetchVideos();
+  });
 
-    const handleGenerateLabels = async () => {
-      if (!selectedVideo) {
-        showToast('Please select a video first', 'warning');
-        return;
-      }
+  const handleGenerateLabels = async () => {
+    if (!selectedVideo) {
+      showToast('Please select a video first', 'warning');
+      return;
+    }
+    
+    try {
+      setIsGenerating(true);
+      showToast('Generating shot labels...', 'info');
       
-      try {
-        setIsGenerating(true);
-        showToast('Generating shot labels...', 'info');
-        
-        const videoId = selectedVideo.split('.')[0];
-        
-        // Call the dedicated generate_label endpoint
-        const response = await fetch(`http://localhost:5000/api/generate_label/predict`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ video_id: videoId }),
-        });
-  
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to generate labels');
-        }
-  
-        const data = await response.json();
-        console.log("Generated labels:", data);
-        setGeneratedLabels(data.rallies);
-        showToast('Shot labels generated successfully!', 'success');
-      } catch (error) {
-        console.error('Error generating labels:', error);
-        showToast('Failed to generate shot labels', 'error');
-      } finally {
-        setIsGenerating(false);
+      const videoId = selectedVideo.split('.')[0];
+      
+      // Call the dedicated generate_label endpoint
+      const response = await fetch(`http://localhost:5000/api/generate_label/predict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ video_id: videoId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate labels');
       }
-    };
+
+      const data = await response.json();
+      console.log("Generated labels:", data);
+      setGeneratedLabels(data.rallies);
+      showToast('Shot labels generated successfully!', 'success');
+    } catch (error) {
+      console.error('Error generating labels:', error);
+      showToast('Failed to generate shot labels', 'error');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Helper function to get handedness icon
+  const getHandednessIcon = (handedness?: string) => {
+    switch(handedness) {
+      case 'right': return '👉';
+      case 'left': return '👈';
+      default: return '❓';
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -171,9 +181,15 @@ const ShotGeneratorView = () => {
                     <>
                       <div className="divider my-2">Player Descriptions</div>
                       <div className="grid grid-cols-2 gap-2 mb-4">
-                        {Object.entries(rally.player_descriptons).map(([player, description]: [string, any]) => (
+                        {Object.entries(rally.player_descriptons?.descriptions || {}).map(([player, description]: [string, any]) => (
                           <div key={player} className="flex items-center gap-2">
                             <span className="font-bold">{player.toUpperCase()}</span>: {description}
+                            {/* Show handedness if available */}
+                            {rally.player_descriptons?.handedness && rally.player_descriptons.handedness[player] && (
+                              <span className="text-lg ml-1" title={rally.player_descriptons.handedness[player]}>
+                                {getHandednessIcon(rally.player_descriptons.handedness[player])}
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -188,6 +204,7 @@ const ShotGeneratorView = () => {
                           <thead>
                             <tr>
                               <th>Player</th>
+                              <th>Hand</th>
                               <th>Frame</th>
                               <th>Label</th>
                               <th>Outcome</th>
@@ -197,6 +214,11 @@ const ShotGeneratorView = () => {
                             {rally.events.map((event: any, eventIndex: number) => (
                               <tr key={eventIndex}>
                                 <td>{event.player}</td>
+                                <td className="text-center">
+                                  <span title={event.handedness || 'unknown'}>
+                                    {getHandednessIcon(event.handedness)}
+                                  </span>
+                                </td>
                                 <td>{event.frame}</td>
                                 <td className="font-mono text-xs">{event.label}</td>
                                 <td>
@@ -247,7 +269,8 @@ const ShotGeneratorView = () => {
             <div>
               <h4 className="font-semibold mb-2">Steps to Generate Shot Labels</h4>
               <ol className="list-decimal list-inside space-y-1 text-sm">
-                <li>First analyze rallies in the "Rally Analysis" tab</li>
+                <li>First define player descriptions including handedness</li>
+                <li>Analyze rallies in the "Rally Analysis" tab</li>
                 <li>Mark all hitting moments in each rally</li>
                 <li>Save the rally data when complete</li>
                 <li>Return to this tab and select your video</li>
@@ -264,6 +287,7 @@ const ShotGeneratorView = () => {
                 <li><strong>Shot Style:</strong> volley (v), slice (s), groundstroke (gs)</li>
                 <li><strong>Direction:</strong> crosscourt (CC), down the line (DL)</li>
                 <li><strong>Outcome:</strong> in, error (err), winner (win)</li>
+                <li><strong>Handedness:</strong> affects technique and shot direction</li>
               </ul>
             </div>
           </div>
