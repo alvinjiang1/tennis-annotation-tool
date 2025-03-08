@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '../../../hooks';
 
 interface RallyData {
   video_id: string;
   rallies: any[];
+}
+
+interface ModelInfo {
+  id: string;
+  name: string;
+  description: string;
 }
 
 const ShotGeneratorView = () => {
@@ -12,14 +18,66 @@ const ShotGeneratorView = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatedLabels, setGeneratedLabels] = useState<RallyData | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>("random");
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState<boolean>(true);
   const { showToast } = useToast();
   
+  // Backend URL
+  const backendUrl = 'http://localhost:5000';
+  
+  // Load available models from backend
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        setIsLoadingModels(true);
+        const response = await fetch(`${backendUrl}/api/generate_label/models`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.models && data.models.length > 0) {
+            setAvailableModels(data.models);
+            // Set default selected model to the first one
+            setSelectedModel(data.models[0].id);
+          } else {
+            // Fallback if no models returned
+            setAvailableModels([{
+              id: "random",
+              name: "Random Generator",
+              description: "Default model for shot label generation"
+            }]);
+          }
+        } else {
+          // Fallback for error case
+          console.error("Failed to fetch models, using default");
+          setAvailableModels([{
+            id: "random",
+            name: "Random Generator",
+            description: "Default model for shot label generation"
+          }]);
+        }
+      } catch (error) {
+        console.error('Error fetching models:', error);
+        // Fallback for exception
+        setAvailableModels([{
+          id: "random",
+          name: "Random Generator",
+          description: "Default model for shot label generation"
+        }]);
+      } finally {
+        setIsLoadingModels(false);
+      }
+    };
+    
+    fetchModels();
+  }, []);
+  
   // Load available videos with rally data
-  useState(() => {
+  useEffect(() => {
     const fetchVideos = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('http://localhost:5000/api/video/uploaded-videos');
+        const response = await fetch(`${backendUrl}/api/video/uploaded-videos`);
         if (response.ok) {
           const data = await response.json();
           
@@ -28,7 +86,7 @@ const ShotGeneratorView = () => {
           for (const video of data.videos) {
             const videoId = video.split('.')[0];
             try {
-              const rallyResponse = await fetch(`http://localhost:5000/api/annotation/get-rallies/${videoId}`);
+              const rallyResponse = await fetch(`${backendUrl}/api/annotation/get-rallies/${videoId}`);
               if (rallyResponse.ok) {
                 const rallyData = await rallyResponse.json();
                 if (rallyData.rallies && Object.keys(rallyData.rallies).length > 0) {
@@ -51,7 +109,7 @@ const ShotGeneratorView = () => {
     };
     
     fetchVideos();
-  });
+  }, []);
 
   const handleGenerateLabels = async () => {
     if (!selectedVideo) {
@@ -61,17 +119,23 @@ const ShotGeneratorView = () => {
     
     try {
       setIsGenerating(true);
-      showToast('Generating shot labels...', 'info');
+      
+      // Get model name for notification
+      const modelName = availableModels.find(m => m.id === selectedModel)?.name || selectedModel;
+      showToast(`Generating shot labels using ${modelName}...`, 'info');
       
       const videoId = selectedVideo.split('.')[0];
       
-      // Call the dedicated generate_label endpoint
-      const response = await fetch(`http://localhost:5000/api/generate_label/predict`, {
+      // Call the API with the selected model
+      const response = await fetch(`${backendUrl}/api/generate_label/predict`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ video_id: videoId }),
+        body: JSON.stringify({ 
+          video_id: videoId,
+          model: selectedModel
+        }),
       });
 
       if (!response.ok) {
@@ -89,6 +153,18 @@ const ShotGeneratorView = () => {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // Helper function to get the name of the selected model
+  const getSelectedModelName = () => {
+    const model = availableModels.find(m => m.id === selectedModel);
+    return model ? model.name : 'Unknown Model';
+  };
+
+  // Helper function to get the description of the selected model
+  const getSelectedModelDescription = () => {
+    const model = availableModels.find(m => m.id === selectedModel);
+    return model ? model.description : '';
   };
 
   // Helper function to get handedness icon
@@ -130,21 +206,6 @@ const ShotGeneratorView = () => {
                   </option>
                 ))}
               </select>
-              
-              <button
-                className="btn btn-primary"
-                onClick={handleGenerateLabels}
-                disabled={!selectedVideo || isGenerating}
-              >
-                {isGenerating ? (
-                  <>
-                    <span className="loading loading-spinner loading-xs"></span>
-                    Generating...
-                  </>
-                ) : (
-                  'Generate Shot Labels'
-                )}
-              </button>
             </div>
             
             {availableVideos.length === 0 && !isLoading && (
@@ -155,6 +216,55 @@ const ShotGeneratorView = () => {
                 <span>No videos with rally data found. Please analyze rallies first.</span>
               </div>
             )}
+          </div>
+          
+          {/* Model Selection */}
+          <div className="form-control w-full mt-4">
+            <label className="label">
+              <span className="label-text font-medium">Select Model</span>
+            </label>
+            
+            {isLoadingModels ? (
+              <div className="flex items-center gap-2">
+                <span className="loading loading-spinner loading-sm"></span>
+                <span>Loading available models...</span>
+              </div>
+            ) : (
+              <>
+                <select
+                  className="select select-bordered w-full"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  disabled={isLoading || isGenerating || availableModels.length === 0}
+                >
+                  {availableModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+                
+                {/* Model Description */}
+                <div className="mt-2 text-sm opacity-70">
+                  {getSelectedModelDescription()}
+                </div>
+              </>
+            )}
+            
+            <button
+              className="btn btn-primary mt-4"
+              onClick={handleGenerateLabels}
+              disabled={!selectedVideo || isGenerating || isLoadingModels}
+            >
+              {isGenerating ? (
+                <>
+                  <span className="loading loading-spinner loading-xs"></span>
+                  Generating...
+                </>
+              ) : (
+                'Generate Shot Labels'
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -167,6 +277,9 @@ const ShotGeneratorView = () => {
               Generated Shot Labels
               <div className="badge badge-secondary ml-2">
                 {generatedLabels.rallies?.length || 0} Rallies
+              </div>
+              <div className="badge badge-primary ml-2">
+                Model: {getSelectedModelName()}
               </div>
             </h3>
             
@@ -274,12 +387,29 @@ const ShotGeneratorView = () => {
                 <li>Mark all hitting moments in each rally</li>
                 <li>Save the rally data when complete</li>
                 <li>Return to this tab and select your video</li>
+                <li>Choose an appropriate model for analysis</li>
                 <li>Click "Generate Shot Labels" to start AI analysis</li>
                 <li>Review the generated labels for each rally</li>
               </ol>
             </div>
             <div>
-              <h4 className="font-semibold mb-2">Label Format</h4>
+              <h4 className="font-semibold mb-2">Available Models</h4>
+              {isLoadingModels ? (
+                <div className="flex items-center gap-2">
+                  <span className="loading loading-spinner loading-sm"></span>
+                  <span>Loading model information...</span>
+                </div>
+              ) : (
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  {availableModels.map(model => (
+                    <li key={model.id} className="mb-2">
+                      <strong>{model.name}:</strong> {model.description}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <h4 className="font-semibold mt-4 mb-2">Label Format</h4>
               <ul className="list-disc list-inside space-y-1 text-sm">
                 <li><strong>Court Position:</strong> near/far + deuce/ad</li>
                 <li><strong>Shot Type:</strong> serve, return, stroke</li>

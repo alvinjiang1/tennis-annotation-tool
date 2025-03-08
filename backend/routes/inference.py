@@ -7,7 +7,6 @@ import json
 import subprocess
 from multiprocessing import Pool
 from models.pose_estimation.tennis_analyzer import TennisPlayerAnalyzer
-from models.shot_labelling.gemini import predict_rallies_gemini
 from routes.annotation import parse_image_url
 
 # Blueprint for inference routes
@@ -119,15 +118,8 @@ def run_model():
     if not frames:
         return jsonify({"error": "No frames found"}), 404
 
-    # frame_info_list = [
-    #     (os.path.join(paths['frames_dir'], frame), paths['predictions_dir'], paths['model_path'], labels) for frame in frames
-    # ]
     frame_info_list = (paths['frames_dir'], paths['predictions_dir'], paths['model_path'], labels)
 
-    # Use multiprocessing to run inference in parallel
-    # with Pool(processes=4) as pool:  # Adjust number of processes based on CPU cores
-    #     results = pool.map(process_frame, frame_info_list)
-    
     res = process_frames(video_id, frame_info_list)
     if res:
         print(res)
@@ -180,27 +172,6 @@ def serve_frame(video_id, filename):
         
     return send_from_directory(predictions_dir, filename)
 
-
-@inference_router.route("/predict", methods=["POST"])
-def predict_rallies():
-    """Generate shot labels for a specific video using Gemini"""
-    data = request.json
-    video_id, _ = parse_image_url(data['image_url'])
-    print(f"Starting shot label generation on: {video_id}")
-    
-    try:
-        # Import here to avoid circular imports
-        from models.shot_labelling.generate_label import generate_labels
-        return generate_labels(video_id)
-    except ImportError:
-        # Fallback to gemini.py if generate_label.py is not available
-        return predict_rallies_gemini(video_id)
-    except Exception as e:
-        print(f"Error generating labels: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-# Add this to backend/routes/inference.py
 
 @inference_router.route("/check-readiness/<video_id>", methods=["GET"])
 def check_inference_readiness(video_id):
