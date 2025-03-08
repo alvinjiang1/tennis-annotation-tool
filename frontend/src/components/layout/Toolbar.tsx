@@ -1,6 +1,6 @@
-import AnnotateButton from "./AnnotateButton";
-import ShotLabelButton from './ShotLabelButton'
-import TrainingButton from "./TrainingButton";
+import AnnotateButton from "../features/annotation/AnnotateButton";
+import ShotLabelButton from '../features/label_shot/ShotLabelButton';
+import TrainingButton from "../features/training/TrainingButton";
 
 type ToolbarProps = {
   setToolbarTab: (tabIndex: number) => void;
@@ -16,6 +16,3 @@ export default function Toolbar ({setToolbarTab}: ToolbarProps) {
     </aside>
   );
 };
-  
-
-  

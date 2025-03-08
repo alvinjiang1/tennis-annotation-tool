@@ -40,65 +40,72 @@ def generate_random_shot_label(frame_index, hit_type=None, net_position=None, pl
         elif frame_index == 1:
             shot_type = "return"  # Second shot is always a return
         else:
-            shot_type = "stroke"  # All others are regular strokes
+            # More variety in shot types for non-serve/return shots
+            shot_type = random.choice(["volley", "lob", "smash", "swing"])
     else:
         shot_type = hit_type
     
-    # Shot technique - forehand/backhand
+    # Is this a serve?
+    is_serve = shot_type == "serve" or shot_type == "second-serve"
+    
+    # Side (forehand/backhand)
     # For left-handed players, adjust the forehand/backhand probability based on court position
     if handedness == "left":
-        # Left-handed players are more likely to hit backhand on ad court, forehand on deuce court
+        # Left-handed players are more likely to hit forehand on deuce court, backhand on ad court
         if "deuce" in court_position:
-            technique = random.choices(["fh", "bh", "-"], weights=[0.7, 0.3, 0.0])[0]
+            side = random.choices(["forehand", "backhand"], weights=[0.7, 0.3])[0]
         else:  # ad court
-            technique = random.choices(["fh", "bh", "-"], weights=[0.3, 0.7, 0.0])[0]
+            side = random.choices(["forehand", "backhand"], weights=[0.3, 0.7])[0]
     elif handedness == "right":
         # Right-handed players are more likely to hit forehand on ad court, backhand on deuce court
         if "deuce" in court_position:
-            technique = random.choices(["fh", "bh", "-"], weights=[0.3, 0.7, 0.0])[0]
+            side = random.choices(["forehand", "backhand"], weights=[0.3, 0.7])[0]
         else:  # ad court
-            technique = random.choices(["fh", "bh", "-"], weights=[0.7, 0.3, 0.0])[0]
+            side = random.choices(["forehand", "backhand"], weights=[0.7, 0.3])[0]
     else:
         # Unknown handedness - equal chance
-        technique = random.choice(["fh", "bh", "-"])
-    
-    # Shot style depends on technique
-    if technique == "fh" or technique == "bh":
-        style = random.choice(["gs", "vs", "s", "-"])
-    else:
-        style = "-"  # No style for serves without technique
+        side = random.choice(["forehand", "backhand"])
     
     # Direction varies based on shot type and handedness
-    if shot_type == "serve":
-        direction = random.choice(["CC", "-"])
+    if is_serve:
+        # For serves, direction can only be T, B, or W
+        direction = random.choice(["T", "B", "W"])
+        # Formation for serves only
+        formation = random.choice(["conventional", "i-formation", "australian"])
     else:
-        # Shot direction tendencies vary based on handedness and technique
-        if handedness == "left" and technique == "fh":
-            # Left-handed forehand - more likely to go down the line from ad court
-            if "ad" in court_position:
-                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.3, 0.5, 0.1, 0.1])[0]
+        # For non-serves, formation is non-serve
+        formation = "non-serve"
+        
+        # Direction based on court-side-handedness combination
+        court_side = court_position.split("_")[1]  # ad or deuce
+        
+        # Apply the validation rules for direction based on court-side-handedness
+        if handedness == "right":
+            # Right-handed validations
+            if court_side == "ad" and side == "backhand":
+                direction = random.choice(["CC", "DL"])
+            elif court_side == "ad" and side == "forehand":
+                direction = random.choice(["II", "IO"])
+            elif court_side == "deuce" and side == "forehand":
+                direction = random.choice(["CC", "DL"])
+            elif court_side == "deuce" and side == "backhand":
+                direction = random.choice(["II", "IO"])
             else:
-                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.5, 0.3, 0.1, 0.1])[0]
-        elif handedness == "left" and technique == "bh":
-            # Left-handed backhand - more likely to go down the line from deuce court
-            if "deuce" in court_position:
-                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.3, 0.5, 0.1, 0.1])[0]
+                direction = random.choice(["CC", "DL", "IO", "II"])
+        elif handedness == "left":
+            # Left-handed validations
+            if court_side == "ad" and side == "forehand":
+                direction = random.choice(["CC", "DL"])
+            elif court_side == "ad" and side == "backhand":
+                direction = random.choice(["II", "IO"])
+            elif court_side == "deuce" and side == "backhand":
+                direction = random.choice(["CC", "DL"])
+            elif court_side == "deuce" and side == "forehand":
+                direction = random.choice(["II", "IO"])
             else:
-                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.5, 0.3, 0.1, 0.1])[0]
-        elif handedness == "right" and technique == "fh":
-            # Right-handed forehand - more likely to go down the line from deuce court
-            if "deuce" in court_position:
-                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.3, 0.5, 0.1, 0.1])[0]
-            else:
-                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.5, 0.3, 0.1, 0.1])[0]
-        elif handedness == "right" and technique == "bh":
-            # Right-handed backhand - more likely to go down the line from ad court
-            if "ad" in court_position:
-                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.3, 0.5, 0.1, 0.1])[0]
-            else:
-                direction = random.choices(["CC", "DL", "IO", "II"], weights=[0.5, 0.3, 0.1, 0.1])[0]
+                direction = random.choice(["CC", "DL", "IO", "II"])
         else:
-            # Unknown handedness - equal chances
+            # Unknown handedness - just pick a random direction
             direction = random.choice(["CC", "DL", "IO", "II"])
     
     # Outcome
@@ -109,7 +116,7 @@ def generate_random_shot_label(frame_index, hit_type=None, net_position=None, pl
         outcome = random.choice(["err", "win"])
     
     # Create label following the format
-    label = f"{court_position}_{shot_type}_{technique}_{style}_{direction}_{outcome}"
+    label = f"{court_position}_{side}_{shot_type}_{direction}_{formation}_{outcome}"
     
     return {
         "label": label,
