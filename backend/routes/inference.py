@@ -180,12 +180,24 @@ def serve_frame(video_id, filename):
         
     return send_from_directory(predictions_dir, filename)
 
+
 @inference_router.route("/predict", methods=["POST"])
 def predict_rallies():
+    """Generate shot labels for a specific video using Gemini"""
     data = request.json
     video_id, _ = parse_image_url(data['image_url'])
     print(f"Starting shot label generation on: {video_id}")
-    return predict_rallies_gemini(video_id)
+    
+    try:
+        # Import here to avoid circular imports
+        from models.shot_labelling.generate_label import generate_labels
+        return generate_labels(video_id)
+    except ImportError:
+        # Fallback to gemini.py if generate_label.py is not available
+        return predict_rallies_gemini(video_id)
+    except Exception as e:
+        print(f"Error generating labels: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 # Add this to backend/routes/inference.py
