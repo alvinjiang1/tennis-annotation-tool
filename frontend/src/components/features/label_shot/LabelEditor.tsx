@@ -317,35 +317,10 @@ const LabelEditor: React.FC<LabelEditorProps> = ({
             )}
           </div>
         </div>
-        
-        <div className="mt-4 flex flex-wrap gap-2">
-          <div>
-            <strong className="mr-2">Player:</strong>
-            <span>{getPlayerName(label.player)}</span>
-          </div>
-          <div>
-            <strong className="mr-2">Handedness:</strong>
-            <span>{getPlayerHandedness(label.player)}</span>
-          </div>
-        </div>
       </div>
       
       {/* Bottom section: Label editor */}
       <div className="card bg-base-200 p-4">
-        <h3 className="text-lg font-bold mb-4">Shot Label</h3>
-        
-        <div className="form-control w-full mb-4">
-          <label className="label">
-            <span className="label-text font-medium">Full Label</span>
-          </label>
-          <input
-            type="text"
-            className="input input-bordered w-full font-mono"
-            value={label.label}
-            disabled={true}
-          />
-        </div>
-        
         {/* Display validation errors */}
         {validationErrors.length > 0 && isEditing && (
           <div className="alert alert-warning mb-4">
