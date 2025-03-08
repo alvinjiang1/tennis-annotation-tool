@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useToast } from "../../../hooks";
-import { useState as useStateEffect } from 'react';
 import { useVideos } from "../../../hooks";
 import BoundingBoxEditor from "./BoundingBoxEditor";
 import RallyControls from "./RallyControls";
@@ -42,6 +41,9 @@ const RallyAnalysisView: React.FC = () => {
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [imageSize, setImageSize] = useState<{ width: number, height: number }>({ width: 1280, height: 720 });
   const [showNetLines, setShowNetLines] = useState<boolean>(true);
+  const [playerNames, setPlayerNames] = useState<{[key: number]: string}>({});
+  const [expandedRallies, setExpandedRallies] = useState<{[key: string]: boolean}>({});
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const { showToast } = useToast();
@@ -59,8 +61,27 @@ const RallyAnalysisView: React.FC = () => {
   useEffect(() => {
     if (videoId) {
       fetchFrames();
+      fetchPlayerCategories();
     }
   }, [videoId]);
+
+  const fetchPlayerCategories = async () => {
+    try {
+      const response = await fetch(`${backendUrl}/api/annotation/get/${videoId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.categories && data.categories.length > 0) {
+          const playerMap: {[key: number]: string} = {}; // Add proper type annotation here
+          data.categories.forEach((cat: {id: number, name: string}) => {
+            playerMap[cat.id] = cat.name;
+          });
+          setPlayerNames(playerMap);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch player categories:", error);
+    }
+  };
 
   const loadRallyData = async (videoId: string) => {
     try {
@@ -281,6 +302,54 @@ const RallyAnalysisView: React.FC = () => {
     return rally.hittingMoments.some(moment => moment.frameNumber === currentFrameIndex);
   };
 
+  const toggleRallyExpansion = (rallyId: string) => {
+    setExpandedRallies(prev => ({
+      ...prev,
+      [rallyId]: !prev[rallyId]
+    }));
+  };
+
+  const handleDeleteHittingMoment = (rallyId: string, momentIndex: number) => {
+    // Create new rallyData with the hitting moment removed
+    setRallyData(prev => {
+      const updatedRallies = {...prev.rallies};
+      
+      // Filter out the moment to delete
+      const updatedMoments = [...updatedRallies[rallyId].hittingMoments];
+      updatedMoments.splice(momentIndex, 1);
+      
+      updatedRallies[rallyId] = {
+        ...updatedRallies[rallyId],
+        hittingMoments: updatedMoments
+      };
+      
+      return {
+        ...prev,
+        rallies: updatedRallies
+      };
+    });
+    
+    showToast("Hitting moment deleted", "success");
+  };
+
+  const getPlayerName = (playerId: number) => {
+    return playerNames[playerId] || `Player ${playerId}`;
+  };
+
+  // Helper function to get player color by ID
+  const getPlayerColorById = (playerId: number): string => {
+    const colors = [
+      "#FF5555", // Red - Player 1
+      "#5555FF", // Blue - Player 2
+      "#55FF55", // Green - Player 3
+      "#FFAA00"  // Orange - Player 4
+    ];
+    
+    // Use modulo to ensure we always get a valid color
+    const colorIndex = (playerId - 1) % colors.length;
+    return colors[colorIndex];
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -371,7 +440,7 @@ const RallyAnalysisView: React.FC = () => {
                     />
                   </div>
                 ) : isEditing ? (
-                      <BoundingBoxEditor
+                  <BoundingBoxEditor
                     imageUrl={frames[currentFrameIndex]}
                     videoId={videoId}
                     frameIndex={currentFrameIndex}
@@ -421,7 +490,7 @@ const RallyAnalysisView: React.FC = () => {
                           setIsLoading(false);
                           setIsEditing(false);
                         }
-                      }, 5000); // Give backend more time to process (increased to 5 seconds)
+                      }, 5000); // Give backend more time to process
                     }}
                   />
                 ) : isMarkingHitting ? (
@@ -582,65 +651,152 @@ const RallyAnalysisView: React.FC = () => {
                     </thead>
                     <tbody>
                       {Object.entries(rallyData.rallies).map(([rallyId, rally]) => (
-                        <tr key={rallyId} className={activeRally === rallyId ? "bg-base-300" : ""}>
-                          <td>{rallyId}</td>
-                          <td>
-                            <button 
-                              className="btn btn-xs"
-                              onClick={() => handleJumpToFrame(rally.startFrame)}
-                            >
-                              {rally.startFrame + 1}
-                            </button>
-                          </td>
-                          <td>
-                            {rally.endFrame >= 0 ? (
+                        <React.Fragment key={rallyId}>
+                          <tr className={activeRally === rallyId ? "bg-base-300" : ""}>
+                            <td className="cursor-pointer" onClick={() => toggleRallyExpansion(rallyId)}>
+                              <div className="flex items-center">
+                                <span className="mr-2">{rallyId}</span>
+                                <svg 
+                                  xmlns="http://www.w3.org/2000/svg" 
+                                  className={`h-4 w-4 transition-transform ${expandedRallies[rallyId] ? 'rotate-180' : ''}`} 
+                                  fill="none" 
+                                  viewBox="0 0 24 24" 
+                                  stroke="currentColor"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </div>
+                            </td>
+                            <td>
                               <button 
                                 className="btn btn-xs"
-                                onClick={() => handleJumpToFrame(rally.endFrame)}
+                                onClick={() => handleJumpToFrame(rally.startFrame)}
                               >
-                                {rally.endFrame + 1}
+                                {rally.startFrame + 1}
                               </button>
-                            ) : (
-                              "Not set"
-                            )}
-                          </td>
-                          <td>{rally.hittingMoments.length}</td>
-                          <td>
-                            <div className="flex gap-1">
-                              <button 
-                                className={`btn btn-xs ${activeRally === rallyId ? 'btn-success' : 'btn-outline'}`}
-                                onClick={() => {
-                                  setActiveRally(rallyId);
-                                  setCurrentRallyId(rallyId);
-                                  handleJumpToFrame(rally.startFrame);
-                                }}
-                              >
-                                {activeRally === rallyId ? 'Selected' : 'Select'}
-                              </button>
-                              <button 
-                                className="btn btn-xs btn-error"
-                                onClick={() => {
-                                  // Remove this rally
-                                  setRallyData(prev => {
-                                    const updatedRallies = {...prev.rallies};
-                                    delete updatedRallies[rallyId];
-                                    return {
-                                      ...prev,
-                                      rallies: updatedRallies
-                                    };
-                                  });
-                                  
-                                  if (activeRally === rallyId) {
-                                    setActiveRally(null);
-                                    setCurrentRallyId("None");
-                                  }
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                            </td>
+                            <td>
+                              {rally.endFrame >= 0 ? (
+                                <button 
+                                  className="btn btn-xs"
+                                  onClick={() => handleJumpToFrame(rally.endFrame)}
+                                >
+                                  {rally.endFrame + 1}
+                                </button>
+                              ) : (
+                                "Not set"
+                              )}
+                            </td>
+                            <td>
+                              <div className="badge badge-primary">{rally.hittingMoments.length}</div>
+                            </td>
+                            <td>
+                              <div className="flex gap-1">
+                                <button 
+                                  className={`btn btn-xs ${activeRally === rallyId ? 'btn-success' : 'btn-outline'}`}
+                                  onClick={() => {
+                                    setActiveRally(rallyId);
+                                    setCurrentRallyId(rallyId);
+                                    handleJumpToFrame(rally.startFrame);
+                                  }}
+                                >
+                                  {activeRally === rallyId ? 'Selected' : 'Select'}
+                                </button>
+                                <button 
+                                  className="btn btn-xs btn-error"
+                                  onClick={() => {
+                                    // Confirm before deletion
+                                    if (window.confirm(`Are you sure you want to delete Rally #${rallyId}?`)) {
+                                      // Remove this rally
+                                      setRallyData(prev => {
+                                        const updatedRallies = {...prev.rallies};
+                                        delete updatedRallies[rallyId];
+                                        return {
+                                          ...prev,
+                                          rallies: updatedRallies
+                                        };
+                                      });
+                                      
+                                      if (activeRally === rallyId) {
+                                        setActiveRally(null);
+                                        setCurrentRallyId("None");
+                                      }
+                                      
+                                      showToast(`Rally #${rallyId} deleted`, "success");
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          
+                          {/* Expanded section to show hitting moments */}
+                          {expandedRallies[rallyId] && rally.hittingMoments.length > 0 && (
+                            <tr className="bg-base-200">
+                              <td colSpan={5} className="p-0">
+                                <div className="p-4">
+                                  <h4 className="font-semibold text-sm mb-2">Hitting Moments</h4>
+                                  <div className="overflow-x-auto">
+                                    <table className="table table-sm w-full">
+                                      <thead>
+                                        <tr>
+                                          <th>#</th>
+                                          <th>Frame</th>
+                                          <th>Player</th>
+                                          <th>Actions</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {rally.hittingMoments.map((moment, index) => (
+                                          <tr key={index} className="hover">
+                                            <td>{index + 1}</td>
+                                            <td>
+                                              <button 
+                                                className="btn btn-xs"
+                                                onClick={() => handleJumpToFrame(moment.frameNumber)}
+                                              >
+                                                {moment.frameNumber + 1}
+                                              </button>
+                                            </td>
+                                            <td>
+                                              <div className="badge" style={{
+                                                backgroundColor: getPlayerColorById(moment.playerId),
+                                                color: getPlayerColorById(moment.playerId) === '#FFFFFF' ? '#000000' : '#FFFFFF'
+                                              }}>
+                                                {getPlayerName(moment.playerId)}
+                                              </div>
+                                            </td>
+                                            <td>
+                                              <button 
+                                                className="btn btn-xs btn-error"
+                                                onClick={() => handleDeleteHittingMoment(rallyId, index)}
+                                              >
+                                                Delete
+                                              </button>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          
+                          {/* Show message if expanded but no hitting moments */}
+                          {expandedRallies[rallyId] && rally.hittingMoments.length === 0 && (
+                            <tr className="bg-base-200">
+                              <td colSpan={5}>
+                                <div className="p-4 text-center text-base-content/70">
+                                  No hitting moments marked for this rally yet
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -738,7 +894,7 @@ interface VideoSelectorProps {
 
 const VideoSelector: React.FC<VideoSelectorProps> = ({ onSelectVideo, currentVideo }) => {
   const { videos, loading } = useVideos();
-  const [filteredVideos, setFilteredVideos] = useStateEffect<string[]>([]);
+  const [filteredVideos, setFilteredVideos] = useState<string[]>([]);
   
   useEffect(() => {
     // Filter videos to only show ones that have been processed with inference
@@ -795,4 +951,4 @@ const VideoSelector: React.FC<VideoSelectorProps> = ({ onSelectVideo, currentVid
   );
 };
 
-export default RallyAnalysisView
+export default RallyAnalysisView;
