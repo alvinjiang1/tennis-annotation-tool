@@ -813,9 +813,9 @@ const RallyAnalysisView: React.FC = () => {
           </div>
           
           {/* Help Section */}
-          <div className="collapse collapse-arrow bg-base-100 shadow-lg">
+          <div className="collapse collapse-arrow bg-base-100 shadow-lg border border-base-300 rounded-lg">
             <input type="checkbox" /> 
-            <div className="collapse-title font-medium">
+            <div className="collapse-title font-medium text-base">
               <div className="flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -824,30 +824,30 @@ const RallyAnalysisView: React.FC = () => {
               </div>
             </div>
             <div className="collapse-content"> 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h4 className="font-semibold mb-2">Getting Started</h4>
-                  <ol className="list-decimal list-inside space-y-1 text-sm">
-                    <li>Select a video that has been processed with inference</li>
-                    <li>Set the net position using the "Set Net Position" button</li>
-                    <li>Navigate to the beginning of a rally and click "Create New Rally"</li>
-                    <li>Browse to moments where players hit the ball</li>
-                    <li>Click "Mark Hitting Moment" then select the player who is hitting the ball</li>
-                    <li>Navigate to the end of the rally and click "Set End Frame"</li>
-                    <li>Save your rally data when finished</li>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
+                <div className="card bg-base-200 shadow-sm p-3 rounded-lg">
+                  <h4 className="text-base font-bold mb-3">Getting Started</h4>
+                  <ol className="list-decimal list-inside space-y-2 ml-2">
+                    <li className="text-sm">Select a video that has been processed with inference</li>
+                    <li className="text-sm">Set the net position using the "Set Net Position" button</li>
+                    <li className="text-sm">Navigate to the beginning of a rally and click "Create New Rally"</li>
+                    <li className="text-sm">Browse to moments where players hit the ball</li>
+                    <li className="text-sm">Click "Mark Hitting Moment" then select the player who is hitting the ball</li>
+                    <li className="text-sm">Navigate to the end of the rally and click "Set End Frame"</li>
+                    <li className="text-sm">Save your rally data when finished</li>
                   </ol>
                 </div>
-                <div>
-                  <h4 className="font-semibold mb-2">Tips & Features</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    <li>The net position is shown with red (horizontal) and blue (vertical) lines</li>
-                    <li>You can toggle the visibility of net lines using the "Hide Net Lines" button</li>
-                    <li>Edit bounding boxes if needed for better player detection</li>
-                    <li>You can create multiple rallies in the same video</li>
-                    <li>Select a rally from the table to continue working on it</li>
-                    <li>Jump directly to specific frames using the slider</li>
-                    <li>Click on frame numbers in the rally table to navigate quickly</li>
-                    <li>Each rally tracks start/end frames and hitting moments</li>
+                <div className="card bg-base-200 shadow-sm p-3 rounded-lg">
+                  <h4 className="text-base font-bold mb-3">Tips & Features</h4>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li className="text-sm">The net position is shown with red (horizontal) and blue (vertical) lines</li>
+                    <li className="text-sm">You can toggle the visibility of net lines using the "Hide Net Lines" button</li>
+                    <li className="text-sm">Edit bounding boxes if needed for better player detection</li>
+                    <li className="text-sm">You can create multiple rallies in the same video</li>
+                    <li className="text-sm">Select a rally from the table to continue working on it</li>
+                    <li className="text-sm">Jump directly to specific frames using the slider</li>
+                    <li className="text-sm">Click on frame numbers in the rally table to navigate quickly</li>
+                    <li className="text-sm">Each rally tracks start/end frames and hitting moments</li>
                   </ul>
                 </div>
               </div>

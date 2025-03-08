@@ -608,9 +608,9 @@ return (
     </div>
     
     {/* Help Section */}
-    <div className="collapse collapse-arrow bg-base-100 shadow-lg">
+    <div className="collapse collapse-arrow bg-base-100 shadow-lg border border-base-300 rounded-lg">
       <input type="checkbox" /> 
-      <div className="collapse-title font-medium">
+      <div className="collapse-title font-medium text-base">
         <div className="flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -619,25 +619,25 @@ return (
         </div>
       </div>
       <div className="collapse-content"> 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <h4 className="font-semibold mb-2">Training Process</h4>
-            <ol className="list-decimal list-inside space-y-1 text-sm">
-              <li>Select a video that has been uploaded and annotated</li>
-              <li>The system checks if frames and annotations are ready</li>
-              <li>Start the training process by clicking the "Start Training" button</li>
-              <li>Wait for the training to complete (may take several minutes)</li>
-              <li>Once training is complete, the model is ready for inference</li>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
+          <div className="card bg-base-200 shadow-sm p-3 rounded-lg">
+            <h4 className="text-base font-bold mb-3">Training Process</h4>
+            <ol className="list-decimal list-inside space-y-2 ml-2">
+              <li className="text-sm">Select a video that has been uploaded and annotated</li>
+              <li className="text-sm">The system checks if frames and annotations are ready</li>
+              <li className="text-sm">Start the training process by clicking the "Start Training" button</li>
+              <li className="text-sm">Wait for the training to complete (may take several minutes)</li>
+              <li className="text-sm">Once training is complete, the model is ready for inference</li>
             </ol>
           </div>
-          <div>
-            <h4 className="font-semibold mb-2">Inference Process</h4>
-            <ol className="list-decimal list-inside space-y-1 text-sm">
-              <li>Select a trained video model</li>
-              <li>Click "Run Inference" to process all video frames</li>
-              <li>The system will detect players in each frame</li>
-              <li>Once complete, you can view results in the Shot Labeling tab</li>
-              <li>You can then label tennis shots using the detected players</li>
+          <div className="card bg-base-200 shadow-sm p-3 rounded-lg">
+            <h4 className="text-base font-bold mb-3">Inference Process</h4>
+            <ol className="list-decimal list-inside space-y-2 ml-2">
+              <li className="text-sm">Select a trained video model</li>
+              <li className="text-sm">Click "Run Inference" to process all video frames</li>
+              <li className="text-sm">The system will detect players in each frame</li>
+              <li className="text-sm">Once complete, you can view results in the Shot Labeling tab</li>
+              <li className="text-sm">You can then label tennis shots using the detected players</li>
             </ol>
           </div>
         </div>
