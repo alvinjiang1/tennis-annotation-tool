@@ -5,13 +5,13 @@ import random
 
 from models.shot_labelling.shot_labelling_model import ShotLabellingModel
 
-class RandomModel(ShotLabellingModel):
+class GeminiModel(ShotLabellingModel):
     def __init__(self):
-        super().__init__(id="random", rallies_path="rallies",
+        super().__init__(id="gemini", rallies_path="rallies",
             output_path="generated_labels", pose_coordinates_path="pose_coordinates", 
             annotations_path="annotations")
-        self.name = "Random Generator"
-        self.description = "Random Generator as a placeholder"
+        self.name = "Gemini (MLLM)"
+        self.description = "Gemini 2.0-Flash (MLLM Generator) to generate labels based on multimodal input"
         
     def generate_shot_labels(self, hitting_moments, rallies_data, pose_data, categories, player_descriptions):
         """Generate labels for a single rally based on hitting moments and additional information"""
@@ -82,8 +82,7 @@ class RandomModel(ShotLabellingModel):
             rally_labels["net_position"] = net_position
 
         return rally_labels
-            
-
+    
 def generate_random_shot_label(frame_index, hit_type=None, net_position=None, player_position=None, handedness="unknown"):
     """Generate a shot label based on position in rally and available info"""
     # Court position - either determined from actual positions or random

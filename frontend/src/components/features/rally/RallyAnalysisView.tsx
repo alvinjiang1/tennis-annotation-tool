@@ -248,8 +248,7 @@ const RallyAnalysisView: React.FC = () => {
 
   const handleSaveRallyData = async () => {
     try {
-      setIsLoading(true);
-      
+      setIsLoading(true);      
       const response = await fetch(`${backendUrl}/api/annotation/save-rallies`, {
         method: "POST",
         headers: {
