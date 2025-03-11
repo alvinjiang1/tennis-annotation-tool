@@ -2,49 +2,58 @@ import json
 import random
 import os
 import re
-import sys
-
-from GroundingDINO.tools.coco2odvg import coco2odvg
+import shutil
 from transformers import AutoTokenizer, AutoModel
+from models.grounding_dino.GroundingDINO.tools.coco2odvg import coco2odvg
 
-# Define dataset split ratios
+# Directory Structure Constants
+BASE_DIR = "data"
+ANNOTATIONS_DIR = os.path.join(BASE_DIR, "annotations")
+RAW_FRAMES_DIR = os.path.join(BASE_DIR, "raw_frames")
+TRAINING_DIR = os.path.join(BASE_DIR, "grounding_dino_training")
+
+# Model Constants
+GROUNDING_DINO_PATH = "models/grounding_dino/"
+BERT_DIR = os.path.join(GROUNDING_DINO_PATH, "bert")
+WEIGHTS_DIR = os.path.join(GROUNDING_DINO_PATH, "weights")
+
+# Dataset split ratios
 TRAIN_RATIO = 0.7
 VAL_RATIO = 0.2
 TEST_RATIO = 0.1
 
-ANNOTATIONS_FILE = "coco_annotations.json"
-OUTPUT_DIR = "training_data"
-TRAIN_FILE = os.path.join(OUTPUT_DIR, "train/_annotations.coco.json")
-VAL_FILE = os.path.join(OUTPUT_DIR, "valid/_annotations.coco.json")
-TEST_FILE = os.path.join(OUTPUT_DIR, "test/_annotations.coco.json")
-
-random.seed(0)
-
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(os.path.join(OUTPUT_DIR, "train"), exist_ok=True)
-os.makedirs(os.path.join(OUTPUT_DIR, "valid"), exist_ok=True)
-os.makedirs(os.path.join(OUTPUT_DIR, "test"), exist_ok=True)
-
 def init_models():
-    # Download Bert
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-    model = AutoModel.from_pretrained("bert-base-uncased")
-    os.makedirs("bert", exist_ok=True)
+    """Initialize and download required models."""
+    # Download Bert if not present
+    if not os.path.exists(BERT_DIR):
+        os.makedirs(BERT_DIR, exist_ok=True)
+        tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+        model = AutoModel.from_pretrained("bert-base-uncased")
+        tokenizer.save_pretrained(BERT_DIR)
+        model.save_pretrained(BERT_DIR)
 
-    tokenizer.save_pretrained("bert")
-    model.save_pretrained("bert")
+    # Download pre-trained GroundingDINO weights if not present
+    if not os.path.exists(WEIGHTS_DIR):
+        os.makedirs(WEIGHTS_DIR, exist_ok=True)
+        os.system("wget -q https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha/groundingdino_swint_ogc.pth -P weights/")
 
-    # Download pre-trained GroundingDINO weights
-    if not os.path.exists("weights"):
-        os.system("mkdir weights")
-        os.system("cd weights")
-        os.system("wget -q https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha/groundingdino_swint_ogc.pth")
-        os.system("cd ..")
+def split_dataset(annotations_path, output_dir, video_id):
+    """
+    Args:
+        annotations_path: Path to the input COCO annotations file
+        output_dir: Directory to save the split datasets
+        video_id: ID of the video being processed
+    """
+    # Create output directories
+    train_dir = os.path.join(output_dir, "train")
+    valid_dir = os.path.join(output_dir, "valid")
+    test_dir = os.path.join(output_dir, "test")
     
+    for dir_path in [train_dir, valid_dir, test_dir]:
+        os.makedirs(dir_path, exist_ok=True)
 
-def split_dataset():
-    """Splits a COCO-style dataset into train, val, and test sets."""
-    with open(ANNOTATIONS_FILE, "r") as f:
+    # Load annotations
+    with open(annotations_path, "r") as f:
         data = json.load(f)
 
     images = data["images"]
@@ -52,6 +61,7 @@ def split_dataset():
     categories = data["categories"]
 
     # Shuffle images before splitting
+    random.seed(0)  # For reproducibility
     random.shuffle(images)
     
     # Compute split sizes
@@ -59,6 +69,7 @@ def split_dataset():
     train_size = int(num_images * TRAIN_RATIO)
     val_size = int(num_images * VAL_RATIO)
     
+    # Split images
     train_images = images[:train_size]
     val_images = images[train_size:train_size + val_size]
     test_images = images[train_size + val_size:]
@@ -73,26 +84,79 @@ def split_dataset():
     val_annotations = [ann for ann in annotations if ann["image_id"] in val_ids]
     test_annotations = [ann for ann in annotations if ann["image_id"] in test_ids]
 
-    # Save the split datasets
+    # Copy images to their respective directories and update file paths
+    source_dir = os.path.join("data/raw_frames", video_id)
+    
+    def copy_and_update_images(image_list, dest_dir):
+        updated_images = []
+        for img in image_list:
+            # Get source and destination paths
+            source_path = os.path.join(source_dir, img["file_name"])
+            dest_path = os.path.join(dest_dir, img["file_name"])
+            
+            # Copy the image
+            try:
+                shutil.copy2(source_path, dest_path)
+            except Exception as e:
+                print(f"Error copying {source_path}: {e}")
+                continue
+                
+            # Update image path in the metadata
+            img_copy = img.copy()
+            img_copy["file_name"] = os.path.basename(img["file_name"])
+            updated_images.append(img_copy)
+            
+        return updated_images
+
+    # Copy images and update metadata
+    train_images = copy_and_update_images(train_images, train_dir)
+    val_images = copy_and_update_images(val_images, valid_dir)
+    test_images = copy_and_update_images(test_images, test_dir)
+
+    # Prepare output paths and datasets
     datasets = {
-        TRAIN_FILE: {"images": train_images, "annotations": train_annotations, "categories": categories},
-        VAL_FILE: {"images": val_images, "annotations": val_annotations, "categories": categories},
-        TEST_FILE: {"images": test_images, "annotations": test_annotations, "categories": categories}
+        os.path.join(output_dir, "train/_annotations.coco.json"): {
+            "images": train_images,
+            "annotations": train_annotations,
+            "categories": categories
+        },
+        os.path.join(output_dir, "valid/_annotations.coco.json"): {
+            "images": val_images,
+            "annotations": val_annotations,
+            "categories": categories
+        },
+        os.path.join(output_dir, "test/_annotations.coco.json"): {
+            "images": test_images,
+            "annotations": test_annotations,
+            "categories": categories
+        }
     }
 
+    # Save split datasets
     for path, dataset in datasets.items():
         with open(path, "w") as f:
             json.dump(dataset, f, indent=2)
-    print(f"Dataset split complete. Train: {len(train_images)} images, Val: {len(val_images)}, Test: {len(test_images)}.")
 
-def modify_coco_2_odvg(categories):
-    fp = "GroundingDINO/tools/coco2odvg.py"
+    return os.path.join(output_dir, "train/_annotations.coco.json")
 
+def modify_coco_2_odvg(categories, video_id):
+    print("DEBUG: Categories received:", categories)
+    fp = os.path.join(GROUNDING_DINO_PATH, "GroundingDINO/tools/coco2odvg.py")
+    input_path = os.path.join(GROUNDING_DINO_PATH, "GroundingDINO/input_params")
+    TRAIN_FILE = os.path.join("data/grounding_dino_training/", video_id, "train/_annotations.coco.json")
+    
+    # Write odvg
+    write_datasets_mixed_odvg(video_id)
+
+    for i, cat in enumerate(categories):
+        print(f"DEBUG: Processing category {i}: {cat}")
+        
     new_id_map = {}
     new_ori_map = {}    
     for cat in categories:
         new_id_map[cat["id"]-1] = cat["id"]
         new_ori_map[str(cat["id"]-1)] = cat["name"]
+        print(f"DEBUG: Added to maps: id-1={cat['id']-1}, id={cat['id']}, name={cat['name']}")
     
     with open(fp, 'r') as file:
         content = file.read()
@@ -102,33 +166,89 @@ def modify_coco_2_odvg(categories):
     with open(fp, 'w') as file:
         file.write(content)
 
-    os.makedirs("GroundingDINO/input_params", exist_ok=True)
-    coco2odvg(TRAIN_FILE, "GroundingDINO/input_params/train.jsonl")
+    os.makedirs(input_path, exist_ok=True)
+    coco2odvg(TRAIN_FILE, os.path.join(f"data/grounding_dino_training/{video_id}/train.jsonl"))
 
-    label_filepath = "GroundingDINO/input_params/label.json"
+    label_filepath = os.path.join(f"data/grounding_dino_training/{video_id}/label.json")
     with open(label_filepath, 'w') as label_file:
         json.dump(new_ori_map, label_file)
 
+
 def modify_config_files(categories):
+    """
+    Modify GroundingDINO config files with custom category labels
+    """
+    # Extract label names from categories
     labels = [cat["name"] for cat in categories]
     label_list_content = f'label_list = {str(labels)}\n'
 
-    g_coco_path = "GroundingDINO/config/cfg_coco.py"
-    g_odvg_path = "GroundingDINO/config/cfg_odvg.py"
+    # Get paths to config files
+    g_coco_path = os.path.join(GROUNDING_DINO_PATH, "GroundingDINO/config/cfg_coco.py")
+    g_odvg_path = os.path.join(GROUNDING_DINO_PATH, "GroundingDINO/config/cfg_odvg.py")
 
     for fp in [g_coco_path, g_odvg_path]:
-        with open(fp, 'r') as file:
-            content = file.read()
-        # Replace use_coco_eval =TRUE with use_coco_eval =FALSE using regex
-        content = re.sub(r'use_coco_eval\s*=\s*True', 'use_coco_eval = False', content)
+        try:
+            with open(fp, 'r') as file:
+                content = file.readlines()
 
-        # Insert label_list after use_coco_eval = FALSE using regex
-        content = re.sub(r'use_coco_eval\s*=\s*False', r'use_coco_eval = False\n\n' + label_list_content, content, count=1, flags=re.MULTILINE)
+            # Create new content list
+            new_content = []
+            label_list_added = False
 
-        with open(fp, 'w') as file:
-            file.write(content)
+            i = 0
+            while i < len(content):
+                line = content[i]
+                
+                # Handle use_coco_eval line
+                if 'use_coco_eval' in line:
+                    new_content.append('use_coco_eval = False\n')
+                    new_content.append('\n')
+                    new_content.append(label_list_content)  # Add our custom label list
+                    label_list_added = True
+                    i += 1
+                    continue
+                
+                # Skip existing label_list lines and the list that follows
+                if 'label_list' in line:
+                    i += 2  # Skip this line and the next (the actual list)
+                    continue
+                
+                # Add other lines normally
+                if not (label_list_added and line.strip() == ''):  # Avoid duplicate blank lines
+                    new_content.append(line)
+                i += 1
 
+            # Write the modified content back to file
+            with open(fp, 'w') as file:
+                file.writelines(new_content)
+                
+        except Exception as e:
+            print(f"Error modifying config file {fp}: {str(e)}")
+            raise Exception(f"Failed to modify config file: {str(e)}")
+            
+            
+def write_datasets_mixed_odvg(video_id):
+    dataset_config = {  
+        "train": [
+            {
+                "root": f"data/grounding_dino_training/{video_id}/train",
+                "anno": f"data/grounding_dino_training/{video_id}/train.jsonl",
+                "label_map": f"data/grounding_dino_training/{video_id}/label.json",
+                "dataset_mode": "odvg"
+            }
+        ],
+        "val": [
+            {
+                "root": f"data/grounding_dino_training/{video_id}/valid",
+                "anno": f"data/grounding_dino_training/{video_id}/valid/_annotations.coco.json",
+                "label_map": None,
+                "dataset_mode": "coco"
+            }
+        ]
+    }
     
-
+    DATASET_PATH = os.path.join(GROUNDING_DINO_PATH, "GroundingDINO", 'config', "datasets_mixed_odvg.json")
     
-    
+    with open(DATASET_PATH, 'w') as f:
+        import json
+        json.dump(dataset_config, f, indent=4)  # Added indent for better readability

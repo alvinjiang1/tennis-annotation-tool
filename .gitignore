@@ -67,7 +67,14 @@ docker-compose.yaml
 *.db
 *.sql
 *.psql
+*.pt
+*.jpg
 /migrations/
+*/data/
+groundingdino/
+GroundingDINO/
+bert/
+groundingdino_swint_ogc.pth
 
 # PostgreSQL Data
 postgres_data/
