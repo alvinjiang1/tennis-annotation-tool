@@ -83,13 +83,12 @@ def get_video_frames(video_id):
     })
 
 @video_router.route("/frame/<video_id>/<frame_filename>")
-def serve_frame(video_id, frame_filename):
-    video_id = video_id.split(".")[0]
-    
+def serve_frame(video_id, frame_filename):    
+    video_id = video_id.split(".")[0]    
     # Serves individual frame image files
     frames_dir = os.path.join(RAW_FRAMES_DIR, video_id)
     
-    if not os.path.exists(os.path.join(frames_dir, frame_filename)):
+    if not os.path.exists(os.path.join(frames_dir, frame_filename)):        
         return jsonify({"error": "Frame does not exist"}), 404
         
     return send_from_directory(frames_dir, frame_filename)

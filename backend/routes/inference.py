@@ -158,7 +158,7 @@ def get_extracted_frames(video_id):
     if not os.path.exists(predictions_dir):
         return jsonify({"error": "No predictions found for this video"}), 404
 
-    frames = sorted(os.listdir(predictions_dir))
+    frames = sorted(os.listdir(predictions_dir))    
     return jsonify({"frames": frames})
 
 @inference_router.route("/frame/<video_id>/<path:filename>")

@@ -74,7 +74,7 @@ const RallyAnalysisView: React.FC = () => {
           const playerMap: {[key: number]: string} = {}; // Add proper type annotation here
           data.categories.forEach((cat: {id: number, name: string}) => {
             playerMap[cat.id] = cat.name;
-          });
+          });          
           setPlayerNames(playerMap);
         }
       }
@@ -87,7 +87,7 @@ const RallyAnalysisView: React.FC = () => {
     try {
       const response = await fetch(`${backendUrl}/api/annotation/get-rallies/${videoId}`);
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json();        
         setRallyData(data);
         if (data.netPosition) {
           setNetPosition(data.netPosition);
@@ -111,12 +111,12 @@ const RallyAnalysisView: React.FC = () => {
       // Use inference frames if available, otherwise use regular frames
       const endpoint = `${backendUrl}/api/inference/frames/${videoId}`;
       const response = await fetch(endpoint);
-      
+          
       if (response.ok) {
-        const data = await response.json();
-        const frameUrls = data.frames.map((frame: string) => 
+        const data = await response.json();        
+        const frameUrls = data.frames.map((frame: string) =>           
           `${backendUrl}/api/inference/frame/${videoId}/${frame}`
-        );
+        );        
         setFrames(frameUrls);
         setCurrentFrameIndex(0);
         showToast(`Loaded ${frameUrls.length} frames`, "success");
@@ -140,8 +140,8 @@ const RallyAnalysisView: React.FC = () => {
     }
   };
 
-  const handleStartRally = () => {
-    const newRallyId = Object.keys(rallyData.rallies).length + 1;
+  const handleStartRally = () => {        
+    const newRallyId = Object.keys(rallyData.rallies ?? {}).length + 1;
     setCurrentRallyId(newRallyId.toString());
     setActiveRally(newRallyId.toString());
     
@@ -365,7 +365,7 @@ const RallyAnalysisView: React.FC = () => {
       {/* Video Selection */}
       <div className="card bg-base-100 shadow-lg">
         <div className="card-body">
-          <h3 className="card-title">Select Processed Video</h3>
+          <h3 className="card-title">Select Processed Video</h3>          
           <VideoSelector onSelectVideo={handleVideoSelection} currentVideo={selectedVideo} />
         </div>
       </div>
@@ -637,7 +637,7 @@ const RallyAnalysisView: React.FC = () => {
             <div className="card-body">
               <h3 className="card-title">Rally Information</h3>
               
-              {Object.keys(rallyData.rallies).length > 0 ? (
+              {Object.keys(rallyData.rallies ?? {}).length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="table table-zebra w-full">
                     <thead>
