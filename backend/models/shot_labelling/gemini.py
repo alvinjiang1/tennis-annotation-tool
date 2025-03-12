@@ -1,4 +1,5 @@
 from flask import jsonify
+from google.genai import Client
 import json
 import os
 import random
@@ -12,6 +13,8 @@ class GeminiModel(ShotLabellingModel):
             annotations_path="annotations")
         self.name = "Gemini (MLLM)"
         self.description = "Gemini 2.0-Flash (MLLM Generator) to generate labels based on multimodal input"
+        self.GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+        self.model = Client(api_key=self.GEMINI_API_KEY)
         
     def generate_shot_labels(self, hitting_moments, rallies_data, pose_data, categories, player_descriptions):
         """Generate labels for a single rally based on hitting moments and additional information"""
@@ -21,7 +24,12 @@ class GeminiModel(ShotLabellingModel):
         
         # Generate events for each hitting moment
         events = []            
+        n = len(hitting_moments)        
         for i, moment in enumerate(hitting_moments):
+            if i == n - 1:
+                # Last hitting moment is not a shot
+                break
+            next_moment = hitting_moments[i+1]
             frame_number = moment.get("frameNumber", 0)
             
             # Get the player from the hitting moment data
@@ -83,7 +91,7 @@ class GeminiModel(ShotLabellingModel):
 
         return rally_labels
     
-def generate_random_shot_label(frame_index, hit_type=None, net_position=None, player_position=None, handedness="unknown"):
+def generate_from_two_hms(frame_index, hit_type=None, net_position=None, player_position=None, handedness="unknown"):
     """Generate a shot label based on position in rally and available info"""
     # Court position - either determined from actual positions or random
     court_position = ShotLabellingModel.get_court_position(net_position, player_position)

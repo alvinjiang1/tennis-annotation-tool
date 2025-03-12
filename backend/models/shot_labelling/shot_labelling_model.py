@@ -5,6 +5,34 @@ import random
 from flask import jsonify
 
 DATA_DIR = "data"
+POSSIBLE_SHOT_DIRECTIONS = {
+    'left': {
+        'forehand': {
+            'deuce_ad': 'II',
+            'deuce_deuce': 'IO',
+            'ad_ad': 'CC',
+            'ad_deuce': 'DL'
+        }, 'backhand': {
+            'deuce_ad': 'DL',
+            'deuce_deuce': 'CC',
+            'ad_ad': 'IO',
+            'ad_deuce': 'II'
+        }
+    },
+    'right': {
+        'forehand': {
+            'deuce_ad': 'DL',
+            'deuce_deuce': 'CC',
+            'ad_ad': 'IO',
+            'ad_deuce': 'II'
+        }, 'backhand': {
+            'deuce_ad': 'II',
+            'deuce_deuce': 'IO',
+            'ad_ad': 'CC',
+            'ad_deuce': 'DL'
+        }
+    }   
+}
 
 class ShotLabellingModel:    
     
@@ -162,7 +190,12 @@ class ShotLabellingModel:
         except Exception as e:
             print(f"Error extracting player descriptions: {e}")
         print("Using randomly generated player descriptions instead")
-        return self._generate_random_player_descriptions()            
+        return self._generate_random_player_descriptions()      
+
+    def get_shot_direction(handedness, hand, start, end):
+        start_court_pos = "ad" if "ad" in start else "deuce"
+        end_court_pos = "ad" if "ad" in end else "deuce"
+        return POSSIBLE_SHOT_DIRECTIONS[handedness][hand][f'{start_court_pos}_{end_court_pos}']      
     
 
     def generate_shot_labels(self, hitting_moments, rallies_data, pose_data, categories, player_descriptions):
