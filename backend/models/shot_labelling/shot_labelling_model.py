@@ -49,7 +49,17 @@ class ShotLabellingModel:
         if is_near:
             return "near_deuce" if is_deuce else "near_ad"
         else:
-            return "far_deuce" if is_deuce else "far_ad"            
+            return "far_deuce" if is_deuce else "far_ad"      
+    
+    @staticmethod
+    def get_shot_direction(handedness, side, start, end):
+        # Start and end must not be on the same side
+        if ("near" in start and "near" in end) or ("far" in start and "far" in end):
+            raise Exception('Start and end positions cannot be on the same side.\
+                            Double check player positions!')
+        start_court_pos = "ad" if "ad" in start else "deuce"
+        end_court_pos = "ad" if "ad" in end else "deuce"
+        return POSSIBLE_SHOT_DIRECTIONS[handedness][side][f'{start_court_pos}_{end_court_pos}']      
 
     def __init__(self, id="random", rallies_path="rallies",
             output_path="generated_labels", pose_coordinates_path="pose_coordinates", 
@@ -190,13 +200,7 @@ class ShotLabellingModel:
         except Exception as e:
             print(f"Error extracting player descriptions: {e}")
         print("Using randomly generated player descriptions instead")
-        return self._generate_random_player_descriptions()      
-
-    def get_shot_direction(handedness, hand, start, end):
-        start_court_pos = "ad" if "ad" in start else "deuce"
-        end_court_pos = "ad" if "ad" in end else "deuce"
-        return POSSIBLE_SHOT_DIRECTIONS[handedness][hand][f'{start_court_pos}_{end_court_pos}']      
-    
+        return self._generate_random_player_descriptions()              
 
     def generate_shot_labels(self, hitting_moments, rallies_data, pose_data, categories, player_descriptions):
         """Generate a shot"""
