@@ -5,6 +5,7 @@ import BoundingBoxEditor from "./BoundingBoxEditor";
 import RallyControls from "./RallyControls";
 import HittingMomentMarker from "./HittingMomentMarker";
 import NetPositionMarker from "./NetPositionMarker";
+import EndFrameMarker from "./EndFrameMarker";
 
 interface RallyData {
   netPosition: { x: number, y: number } | null;
@@ -32,6 +33,8 @@ const RallyAnalysisView: React.FC = () => {
   const [currentRallyId, setCurrentRallyId] = useState<string>("None");
   const [activeRally, setActiveRally] = useState<string | null>(null);
   const [isMarkingHitting, setIsMarkingHitting] = useState<boolean>(false);
+  const [isMarkingEnd, setIsMarkingEnd] = useState<boolean>(false);
+  const [endFrameBallPosition, setEndFrameBallPosition] = useState<{ x: number, y: number } | null>(null);
   const [netPosition, setNetPosition] = useState<{ x: number, y: number } | null>(null);
   const [isSettingNet, setIsSettingNet] = useState<boolean>(false);
   const [rallyData, setRallyData] = useState<RallyData>({
@@ -78,7 +81,7 @@ const RallyAnalysisView: React.FC = () => {
       }
       
       // Skip keyboard navigation if in editing mode, setting net, or marking hitting
-      if (isEditing || isSettingNet || isMarkingHitting) {
+      if (isEditing || isSettingNet || isMarkingHitting || isMarkingEnd) {
         return;
       }
       
@@ -237,11 +240,23 @@ const RallyAnalysisView: React.FC = () => {
     showToast(`Created Rally #${newRallyId} starting at frame ${currentFrameIndex + 1}`, "info");
   };
 
-  const handleSetRallyEndFrame = () => {
+  const handleToggleMarkEnd = () => {
     if (!activeRally) {
       showToast("Please select or create a rally first", "warning");
       return;
-    }
+    }    
+
+    setIsMarkingEnd(!isMarkingEnd);    
+    if (!isMarkingEnd) {      
+      showToast("Click on the ball position in the final frame", "info");
+    }    
+  };
+
+  const handleMarkEndFrame = (frameNumber: number, ballPosition: { x: number, y: number }) => {
+    if (!activeRally) {
+      showToast("Please select or create a rally first", "warning");
+      return;
+    }    
     
     setRallyData(prev => ({
       ...prev,
@@ -249,12 +264,13 @@ const RallyAnalysisView: React.FC = () => {
         ...prev.rallies,
         [activeRally]: {
           ...prev.rallies[activeRally],
-          endFrame: currentFrameIndex
+          endFrame: frameNumber,   
+          endBallPosition: ballPosition       
         }
       }
-    }));
-    
-    showToast(`Set end frame for Rally #${activeRally} at frame ${currentFrameIndex + 1}`, "success");
+    }));    
+    showToast(`End frame set at ${frameNumber + 1}, Ball at (${Math.round(ballPosition.x)}, ${Math.round(ballPosition.y)})`, "success");
+    setIsMarkingEnd(false);
   };
 
   const handleToggleMarkHitting = () => {
@@ -583,6 +599,13 @@ const RallyAnalysisView: React.FC = () => {
                     videoId={videoId}
                     onMarkHittingMoment={handleMarkHittingMoment}
                   />
+                ) : isMarkingEnd ? (
+                  <EndFrameMarker
+                    imageUrl={frames[currentFrameIndex]}
+                    videoId={videoId}
+                    onMarkEndFrame={handleMarkEndFrame}
+                    frameNumber={currentFrameIndex}
+                    />
                 ) : (
                   <div className="flex justify-center relative">
                     <img 
@@ -644,7 +667,7 @@ const RallyAnalysisView: React.FC = () => {
                     <button 
                       className="btn btn-success"
                       onClick={handleStartRally}
-                      disabled={isSettingNet || isEditing}
+                      disabled={isSettingNet || isEditing || isMarkingHitting|| isMarkingEnd}
                     >
                       Create New Rally
                     </button>
@@ -653,16 +676,16 @@ const RallyAnalysisView: React.FC = () => {
                       <>
                         <button 
                           className="btn btn-primary"
-                          onClick={handleSetRallyEndFrame}
-                          disabled={isSettingNet || isEditing}
+                          onClick={handleToggleMarkEnd}
+                          disabled={isSettingNet || isEditing || isMarkingHitting}
                         >
-                          Set End Frame
+                          {isMarkingEnd ? 'Cancel' : 'Mark End Frame'}
                         </button>
                         
                         <button 
                           className={`btn ${isMarkingHitting ? 'btn-error' : 'btn-accent'}`}
                           onClick={handleToggleMarkHitting}
-                          disabled={isSettingNet || isEditing}
+                          disabled={isSettingNet || isEditing || isMarkingEnd}
                         >
                           {isMarkingHitting ? 'Cancel' : 'Mark Hitting Moment'}
                         </button>

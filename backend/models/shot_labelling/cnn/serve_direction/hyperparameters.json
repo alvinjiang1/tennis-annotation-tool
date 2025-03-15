@@ -1,0 +1,18 @@
+{
+    "batch_size": 32,
+    "num_epochs": 50,
+    "learning_rate": 0.0001,
+    "max_poses": 4,
+    "model": "DualImageResNet50",
+    "class_balanced": true,
+    "class_mappings": {
+        "b": 0,
+        "t": 1,
+        "w": 2
+    },
+    "class counts": {
+        "0": 166,
+        "1": 78,
+        "2": 54
+    }
+}

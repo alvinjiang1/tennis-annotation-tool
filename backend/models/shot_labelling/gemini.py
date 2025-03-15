@@ -14,7 +14,7 @@ class GeminiModel(ShotLabellingModel):
         self.name = "Gemini (MLLM)"
         self.description = "Gemini 2.0-Flash (MLLM Generator) to generate labels based on multimodal input"
         self.GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-        self.model = Client(api_key=self.GEMINI_API_KEY)
+        # self.model = Client(api_key=self.GEMINI_API_KEY)
         
     def generate_shot_labels(self, hitting_moments, rallies_data, pose_data, categories, player_descriptions):
         """Generate labels for a single rally based on hitting moments and additional information"""
@@ -26,60 +26,30 @@ class GeminiModel(ShotLabellingModel):
         events = []            
         n = len(hitting_moments)        
         for i, moment in enumerate(hitting_moments):
-            if i == n - 1:
-                # Last hitting moment is not a shot
-                break
-            next_moment = hitting_moments[i+1]
-            frame_number = moment.get("frameNumber", 0)
-            
-            # Get the player from the hitting moment data
-            player_id = self.get_player_from_hitting_moment(moment)
-            
-            # Get player handedness from the categories
-            handedness = self.get_player_handedness(player_id, categories)
-            
-            # Determine hit type based on position in rally
-            hit_type = None
-            if i == 0:
-                hit_type = "serve"
-            elif i == 1:
-                hit_type = "return"
-            else:
-                hit_type = "stroke"
-            
-            # Get player position from the hitting moment
-            player_position = moment.get("playerPosition", None)
-            
+            next_moment = None
+            if i < n - 1:
+                next_moment = hitting_moments[i+1]                        
+                                    
+            is_serve = True if i == 0 else False
+            is_return = True if i == 1 else False
+            is_last = True if i == n - 1 else False
             # Generate shot label based on available data
-            shot_info = generate_random_shot_label(
-                i, 
-                hit_type=hit_type,
-                net_position=net_position,
-                player_position=player_position,
-                handedness=handedness
-            )
-            
-            # Set outcome for last shot in rally
-            if i == len(hitting_moments) - 1:
-                # Last shot is more likely to be an error or winner
-                if random.random() < 0.8:  # 80% chance for last shot
-                    shot_info["outcome"] = random.choice(["err", "win"])
+            shot_info = generate_from_two_hms(moment, next_moment, net_position, is_serve, is_return, is_last)
             
             # Add event with all available data
             event = {
-                "player": player_id,
-                "frame": frame_number,
+                "player": shot_info['player'],
+                "frame": shot_info['frame_number'],
                 "label": shot_info["label"],
                 "outcome": shot_info["outcome"],
-                "handedness": handedness  # Include handedness in output for reference
-            }
-            
-            # Add additional data if available (position, bbox, etc.)
+                "handedness": shot_info['handedness']  # Include handedness in output for reference
+            }                        
+            player_position = moment.get("playerPosition", None)
             if player_position:
-                event["player_position"] = player_position
-                
+                event['player_position'] = player_position
             events.append(event)
         
+            
         # Create rally output
         rally_labels = {
             "player_descriptons": player_descriptions,
@@ -91,97 +61,73 @@ class GeminiModel(ShotLabellingModel):
 
         return rally_labels
     
-def generate_from_two_hms(frame_index, hit_type=None, net_position=None, player_position=None, handedness="unknown"):
-    """Generate a shot label based on position in rally and available info"""
-    # Court position - either determined from actual positions or random
-    court_position = ShotLabellingModel.get_court_position(net_position, player_position)
-    
-    # Shot type based on position in rally
-    if hit_type is None:
-        if frame_index == 0:
-            shot_type = "serve"  # First shot is always a serve
-        elif frame_index == 1:
-            shot_type = "return"  # Second shot is always a return
-        else:
-            # More variety in shot types for non-serve/return shots
-            shot_type = random.choice(["volley", "lob", "smash", "swing"])
-    else:
-        shot_type = hit_type
-    
-    # Is this a serve?
-    is_serve = shot_type == "serve" or shot_type == "second-serve"
-    
-    # Side (forehand/backhand)
-    # For left-handed players, adjust the forehand/backhand probability based on court position
-    if handedness == "left":
-        # Left-handed players are more likely to hit forehand on deuce court, backhand on ad court
-        if "deuce" in court_position:
-            side = random.choices(["forehand", "backhand"], weights=[0.7, 0.3])[0]
-        else:  # ad court
-            side = random.choices(["forehand", "backhand"], weights=[0.3, 0.7])[0]
-    elif handedness == "right":
-        # Right-handed players are more likely to hit forehand on ad court, backhand on deuce court
-        if "deuce" in court_position:
-            side = random.choices(["forehand", "backhand"], weights=[0.3, 0.7])[0]
-        else:  # ad court
-            side = random.choices(["forehand", "backhand"], weights=[0.7, 0.3])[0]
-    else:
-        # Unknown handedness - equal chance
-        side = random.choice(["forehand", "backhand"])
-    
-    # Direction varies based on shot type and handedness
-    if is_serve:
-        # For serves, direction can only be T, B, or W
-        direction = random.choice(["T", "B", "W"])
-        # Formation for serves only
-        formation = random.choice(["conventional", "i-formation", "australian"])
-    else:
-        # For non-serves, formation is non-serve
-        formation = "non-serve"
+    def generate_serve_label(moment, next_moment):
+        return
+    def generate_stroke_label(moment, next_moment):
+        return
+    def generate_outcome(moment, outcome):
+        """
+        Looks at the hitting moment and the ending frame to decide if the outcome
+        was due to a winner or an error.
+        """
+
+    def generate_from_two_hms(self, moment, next_moment, net_position, is_serve, is_return, is_last):
+        """Generate a shot label based on position in rally and available info"""
+
+        frame_number = moment.get("frameNumber", 0)
+        player_position = moment.get("playerPosition", None)    
         
-        # Direction based on court-side-handedness combination
-        court_side = court_position.split("_")[1]  # ad or deuce
+        # Determine player
+        player = self.get_player_from_hitting_moment(moment)
         
-        # Apply the validation rules for direction based on court-side-handedness
-        if handedness == "right":
-            # Right-handed validations
-            if court_side == "ad" and side == "backhand":
-                direction = random.choice(["CC", "DL"])
-            elif court_side == "ad" and side == "forehand":
-                direction = random.choice(["II", "IO"])
-            elif court_side == "deuce" and side == "forehand":
-                direction = random.choice(["CC", "DL"])
-            elif court_side == "deuce" and side == "backhand":
-                direction = random.choice(["II", "IO"])
-            else:
-                direction = random.choice(["CC", "DL", "IO", "II"])
-        elif handedness == "left":
-            # Left-handed validations
-            if court_side == "ad" and side == "forehand":
-                direction = random.choice(["CC", "DL"])
-            elif court_side == "ad" and side == "backhand":
-                direction = random.choice(["II", "IO"])
-            elif court_side == "deuce" and side == "backhand":
-                direction = random.choice(["CC", "DL"])
-            elif court_side == "deuce" and side == "forehand":
-                direction = random.choice(["II", "IO"])
-            else:
-                direction = random.choice(["CC", "DL", "IO", "II"])
-        else:
-            # Unknown handedness - just pick a random direction
-            direction = random.choice(["CC", "DL", "IO", "II"])
-    
-    # Outcome
-    # Last shot in rally more likely to be an error or winner
-    if random.random() < 0.7:  # 70% chance of 'in' for non-last shots
+        # Court position - either determined from actual positions or random
+        court_position = ShotLabellingModel.get_court_position(net_position, player_position)
+
+        # Determine shot outcome
         outcome = "in"
-    else:
-        outcome = random.choice(["err", "win"])
-    
-    # Create label following the format
-    label = f"{court_position}_{side}_{shot_type}_{direction}_{formation}_{outcome}"
-    
-    return {
-        "label": label,
-        "outcome": outcome
-    }
+        if is_last:
+            outcome = generate_outcome(moment, next_moment)
+
+        # Determine formation
+        formation = "non-serve"
+        if is_serve:
+            formation = generate_formation(moment)
+        
+        # Determine shot type
+        shot_type = ""
+        if is_serve:
+            shot_type="serve"
+        if is_return:
+            shot_type="return"
+        if is_last:
+            shot_type="swing" # Temporarily put as swing, since last frame info not avail
+        else:
+            shot_type = generate_shot_type(moment, next_moment)
+
+        # Determine side
+        side = generate_side(moment)
+        # Determine shot direction    
+        direction="DL" # Temporarily put DL, since last frame info not avail    
+        if not is_last:
+            next_player_position = next_moment.get("playerPosition", None)
+            handedness = self.get_player_handedness(player, self.get_categories())
+            next_court_position = ShotLabellingModel.get_court_position(net_position, next_player_position)            
+            direction = ShotLabellingModel.get_shot_direction(handedness, side, court_position, next_court_position)
+            
+        
+        # Create label following the format
+        label = f"{court_position}_{side}_{shot_type}_{direction}_{formation}_{outcome}"
+        # Court position -> code
+        # direction -> code
+        # formation -> generated (diff if serve)
+        # outcome -> generated (diff if end)
+        # shot_type -> generated (diff if serve and return)
+        # side -> generated
+        # Add additional data if available (position, bbox, etc.)
+        return {
+            "player": player,
+            "frame_number": frame_number,
+            "label": label,
+            "outcome": outcome,
+            "handedness": handedness
+        }

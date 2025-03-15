@@ -75,6 +75,8 @@ groundingdino/
 GroundingDINO/
 bert/
 groundingdino_swint_ogc.pth
+*.pth
+*.png
 
 # PostgreSQL Data
 postgres_data/

@@ -141,9 +141,13 @@ class ShotLabellingModel:
         # Find the player in categories
         for category in categories:
             if category.get('id') == player_id:
-                return category.get('handedness', 'unknown')
-        
+                return category.get('handedness', 'unknown')        
         return "unknown"  
+    
+    def get_image_from_hitting_moment(self, hitting_moment):
+        # self.video_id
+        return
+
     
     def _generate_random_player_descriptions(self):
         """Generate random player descriptions"""

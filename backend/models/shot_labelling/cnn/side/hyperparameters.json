@@ -1,0 +1,16 @@
+{
+    "batch_size": 32,
+    "num_epochs": 50,
+    "learning_rate": 0.0001,
+    "max_poses": 4,
+    "model": "ResNet50",
+    "class_balanced": true,
+    "class_mappings": {
+        "backhand": 0,
+        "forehand": 1
+    },
+    "class_counts": {
+        "0": 324,
+        "1": 471
+    }
+}

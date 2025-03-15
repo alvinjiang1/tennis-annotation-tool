@@ -1,0 +1,20 @@
+
+===== EVALUATION METRICS =====
+
+Per-class metrics:
+Class		Precision	Recall		F1		Support		AUC
+lob         	0.0000		0.0000		0.0000		8		0.7388
+smash       	0.2222		0.3636		0.2759		11		0.7397
+swing       	0.8938		0.8938		0.8938		113		0.9119
+volley      	0.6364		0.6481		0.6422		54		0.8453
+
+Macro average:
+Precision: 0.4381
+Recall: 0.4764
+F1: 0.4530
+AUC: 0.8089
+
+Weighted average:
+Precision: 0.7409
+Recall: 0.7527
+F1: 0.7458
