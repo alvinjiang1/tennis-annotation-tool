@@ -218,6 +218,7 @@ class ShotLabellingModel:
         # Load rally data
         try:
             rallies_data = self.get_rallies_data()
+            rallies_data['video_id'] = video_id
         except FileNotFoundError as e:
             return jsonify({"error": "No rallies found for this video"}), 404
         except json.JSONDecodeError as e:

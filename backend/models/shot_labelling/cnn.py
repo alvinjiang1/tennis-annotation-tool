@@ -8,13 +8,14 @@ import json
 import os
 from models.shot_labelling.shot_labelling_model import ShotLabellingModel
 from torchvision.models import resnet50
+import torchvision.models as models
 
 # Single Image CNN (for shot_type, side)
 class TennisCNN(nn.Module):
     def __init__(self, num_classes, pretrained=True):
         super(TennisCNN, self).__init__()
         # Use a pre-trained ResNet model
-        self.backbone = models.resnet50()
+        self.backbone = resnet50()
         
         # Replace the final fully connected layer for our classification task
         in_features = self.backbone.fc.in_features
@@ -103,42 +104,78 @@ class CNNModel(ShotLabellingModel):
             try:
                 # Load hyperparameters
                 hyperparams_path = os.path.join(self.cnn_dir, task, "hyperparameters.json")
-                if os.path.exists(hyperparams_path):
-                    with open(hyperparams_path, 'r') as f:
-                        config = json.load(f)
-                    
-                    # Get class mappings
-                    class_mappings = config.get("class_mappings", {})
-                    num_classes = len(class_mappings)
-                    
-                    # Create reverse mapping (index to label)
-                    reverse_mapping = {v: k for k, v in class_mappings.items()}
-                    
-                    # Initialize the appropriate model based on config
-                    if config.get("model") == "DualImageResNet50":
-                        model = DualImageTennisCNN(num_classes)
-                    else:  # Default to ResNet50
-                        model = TennisCNN(num_classes)
-                    
-                    # Load weights if they exist
-                    model_path = os.path.join(self.cnn_dir, task, "best_model.pth")
-                    if os.path.exists(model_path):
-                        model.load_state_dict(torch.load(model_path, map_location=self.device))
-                        model.to(self.device)
-                        model.eval()
-                        
-                        # Store model, config, and reverse mapping
-                        self.models[task] = model
-                        self.configs[task] = config
-                        self.reverse_mappings[task] = reverse_mapping
-                        print(f"Loaded {task} model with {num_classes} classes")
-                    else:
-                        print(f"Warning: Weights file not found for {task} at {model_path}")
-                else:
+                if not os.path.exists(hyperparams_path):
                     print(f"Warning: Hyperparameters file not found for {task} at {hyperparams_path}")
-            
+                    continue
+                    
+                with open(hyperparams_path, 'r') as f:
+                    config = json.load(f)
+                
+                # Get class mappings
+                class_mappings = config.get("class_mappings", {})
+                num_classes = len(class_mappings)
+                
+                # Create reverse mapping (index to label)
+                reverse_mapping = {v: k for k, v in class_mappings.items()}
+                
+                # Model weights path
+                model_path = os.path.join(self.cnn_dir, task, "best_model.pth")
+                if not os.path.exists(model_path):
+                    print(f"Warning: Weights file not found for {task} at {model_path}")
+                    continue
+                
+                # Initialize the appropriate model based on config
+                model_type = config.get("model", "ResNet50")
+                print(f"Loading {task} model ({model_type}) with {num_classes} classes...")
+                
+                if model_type == "DualImageResNet50":
+                    model = DualImageTennisCNN(num_classes=num_classes)
+                else:  # Default to ResNet50
+                    model = TennisCNN(num_classes=num_classes)
+                
+                # Load checkpoint
+                checkpoint = torch.load(model_path, map_location=self.device)
+                
+                # Extract model weights from checkpoint
+                if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+                    # Load from training checkpoint format
+                    print(f"Loading {task} from checkpoint dictionary...")
+                    state_dict = checkpoint["model_state_dict"]
+                    
+                    # Optional: Print validation accuracy if available
+                    if "val_acc" in checkpoint:
+                        print(f"Model validation accuracy: {checkpoint['val_acc']:.2f}%")
+                else:
+                    # Try loading directly if it's just the state dict
+                    print(f"Loading {task} from direct state dictionary...")
+                    state_dict = checkpoint
+                
+                # Load state dict into model
+                try:
+                    model.load_state_dict(state_dict)
+                    print(f"Successfully loaded weights for {task}")
+                except Exception as e:
+                    print(f"Error loading state dict for {task}: {str(e)}")
+                    print(f"Attempting to load with strict=False...")
+                    
+                    # Try loading with strict=False to ignore missing keys
+                    model.load_state_dict(state_dict, strict=False)
+                    print(f"Loaded partial weights for {task}")
+                
+                # Move model to device and set to evaluation mode
+                model.to(self.device)
+                model.eval()
+                
+                # Store model, config, and mapping
+                self.models[task] = model
+                self.configs[task] = config
+                self.reverse_mappings[task] = reverse_mapping
+                print(f"Successfully loaded {task} model")
+                
             except Exception as e:
-                print(f"Error loading {task} model: {str(e)}")
+                print(f"Failed to load {task} model: {str(e)}")
+                import traceback
+                traceback.print_exc()
     
     def save_player_data(self, video_id, frame_number, moment, next_moment, bbox_data):
         """Extract and save player images for CNN input"""
