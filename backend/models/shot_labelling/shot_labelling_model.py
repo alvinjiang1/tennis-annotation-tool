@@ -244,7 +244,7 @@ class ShotLabellingModel:
                 if next_key in bbox_data:
                     next_frame_key = next_key
                     next_frame_data = bbox_data[next_key]
-                    print(f"Found next frame key: {next_frame_key}")
+                    print(f"Found next frame key: {next_frame_key} for current frame {frame_key}")
                     break
             
             if not next_frame_key:
