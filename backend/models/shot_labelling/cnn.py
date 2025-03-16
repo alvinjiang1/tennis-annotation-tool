@@ -200,8 +200,10 @@ class CNNModel(ShotLabellingModel):
                 
                 # Get the label
                 predicted_idx = predicted.item()
-                return self.reverse_mappings["side"].get(predicted_idx, "forehand")
-                
+                side = self.reverse_mappings["side"].get(predicted_idx, "forehand")
+                print(f'Predicted side: {side}')
+                return side
+                    
         except Exception as e:
             print(f"Error predicting side: {str(e)}")
             return "forehand"
@@ -230,7 +232,9 @@ class CNNModel(ShotLabellingModel):
                 
                 # Get the label
                 predicted_idx = predicted.item()
-                return self.reverse_mappings["shot_type"].get(predicted_idx, "swing")
+                shot_type = self.reverse_mappings["shot_type"].get(predicted_idx, "swing")
+                print(f'Predicted shot type: {shot_type}')
+                return shot_type
                 
         except Exception as e:
             print(f"Error predicting shot type: {str(e)}")
@@ -265,7 +269,9 @@ class CNNModel(ShotLabellingModel):
                 
                 # Get the label
                 predicted_idx = predicted.item()
-                return self.reverse_mappings["formation"].get(predicted_idx, "conventional")
+                formation = self.reverse_mappings["formation"].get(predicted_idx, "conventional")
+                print(f"Predicted formation: {formation}")
+                return formation
                 
         except Exception as e:
             print(f"Error predicting formation: {str(e)}")
@@ -298,7 +304,9 @@ class CNNModel(ShotLabellingModel):
                     
                     # Get the label
                     predicted_idx = predicted.item()
-                    return self.reverse_mappings["serve_direction"].get(predicted_idx, "t")
+                    serve_direction = self.reverse_mappings["serve_direction"].get(predicted_idx, "t")
+                    print(f"Predicted serve direction: {serve_direction}")
+                    return serve_direction
             
             except Exception as e:
                 print(f"Error predicting serve direction: {str(e)}")
@@ -329,6 +337,7 @@ class CNNModel(ShotLabellingModel):
                         # Get the label
                         predicted_idx = predicted.item()
                         direction_type = self.reverse_mappings["shot_direction"].get(predicted_idx, "cross")
+                        print(f"Predicted shot direction type: {direction_type}")
                         
                         # Convert to actual direction code
                         if direction_type == "cross":
@@ -347,7 +356,7 @@ class CNNModel(ShotLabellingModel):
     
     def correct_direction_by_strategy(self, predicted_direction, court_position, side, handedness):
         """Apply tennis strategy rules to correct predicted direction based on player position and handedness"""
-        # Extract court side (deuce/ad)
+        # Extract court side (deuce/ad)st
         court_side = court_position.split("_")[1] if "_" in court_position else "deuce"
         
         # Rules for right-handed players
@@ -416,7 +425,9 @@ class CNNModel(ShotLabellingModel):
                 
                 # Get the label
                 predicted_idx = predicted.item()
-                return self.reverse_mappings["outcome"].get(predicted_idx, "err")
+                outcome = self.reverse_mappings["outcome"].get(predicted_idx, "err")
+                print(f"Predicted outcome: {outcome}")
+                return outcome
                 
         except Exception as e:
             print(f"Error predicting outcome: {str(e)}")

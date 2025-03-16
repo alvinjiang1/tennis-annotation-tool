@@ -144,6 +144,80 @@ class ShotLabellingModel:
                 return category.get('handedness', 'unknown')        
         return "unknown"
     
+    def _find_hitting_players_by_id(self, bboxes_data, player_id, categories=None):
+        """Find hitting player and partner based on player ID
+        
+        Args:
+            bboxes_data: List of bounding box data including label
+            player_id: Player ID (as integer, not p1 format)
+            categories: List of categories with ID to label mapping
+            
+        Returns:
+            tuple: (hitting_player_index, partner_index)
+        """
+        hitting_player_idx = -1
+        partner_id = -1
+        partner_idx = -1
+        
+        # Determine partner ID based on team structure
+        if player_id == 1:
+            partner_id = 2
+        elif player_id == 2:
+            partner_id = 1
+        elif player_id == 3:
+            partner_id = 4
+        elif player_id == 4:
+            partner_id = 3
+        
+        # First attempt: Try to find player and partner by their labels in categories
+        if categories:
+            player_label = None
+            partner_label = None
+            
+            # Find the labels for both player and partner
+            for category in categories:
+                if category.get('id') == player_id:
+                    player_label = category.get('name')
+                elif category.get('id') == partner_id:
+                    partner_label = category.get('name')
+            
+            # If we found the labels, search for them in the bboxes
+            if player_label or partner_label:
+                for i, box_data in enumerate(bboxes_data):
+                    if "label" in box_data:
+                        if player_label and box_data["label"] == player_label:
+                            hitting_player_idx = i
+                        elif partner_label and box_data["label"] == partner_label:
+                            partner_idx = i
+        
+        # Second attempt: Try to infer by common label patterns if not found
+        if hitting_player_idx == -1 or partner_idx == -1:
+            common_labels = {
+                1: ["red", "player 1", "p1"],
+                2: ["black", "player 2", "p2"],
+                3: ["white", "player 3", "p3"],
+                4: ["pink", "player 4", "p4"]
+            }
+            
+            player_keywords = common_labels.get(player_id, [])
+            partner_keywords = common_labels.get(partner_id, [])
+            
+            for i, box_data in enumerate(bboxes_data):
+                if "label" in box_data:
+                    label = box_data["label"].lower()
+                    
+                    # Check for player
+                    if hitting_player_idx == -1:
+                        if any(keyword in label for keyword in player_keywords):
+                            hitting_player_idx = i
+                    
+                    # Check for partner
+                    if partner_idx == -1:
+                        if any(keyword in label for keyword in partner_keywords):
+                            partner_idx = i
+        
+        return hitting_player_idx, partner_idx
+        
     def extract_player_images(self, video_id, frame_number, moment, next_moment, bbox_data=None):
         """Extract and save player images for CNN input"""
         print(f"Extracting player images from {video_id} for frame {frame_number}")
@@ -169,134 +243,225 @@ class ShotLabellingModel:
         os.makedirs(os.path.join(cnn_data_dir, "hitting_partner"), exist_ok=True)
         os.makedirs(os.path.join(cnn_data_dir, "hitting_player_n"), exist_ok=True)
         
-        # Get player position
-        player_position = moment.get("playerPosition", None)
-        if not player_position:
-            print("No player position found")
-            return None, None, None
+        # Get categories to map player IDs to labels
+        categories = self.get_categories()
+        
+        # Get player ID and label
+        player_id = None
+        player_label = None
+        
+        if "playerId" in moment:
+            player_id = moment["playerId"]
+            # Find corresponding label from categories
+            for category in categories:
+                if category.get('id') == player_id:
+                    player_label = category.get('name')
+                    break
+        elif "boundingBoxes" in moment:
+            for box in moment["boundingBoxes"]:
+                if "category_id" in box:
+                    player_id = box["category_id"]
+                    if "label" in box:
+                        player_label = box["label"]
+                    break
+                    
+        if player_id is None and player_label is None:
+            print("No player ID or label found")
             
-        # Try different frame key formats
-        frame_key = None
+            # Fallback to position-based method
+            player_position = moment.get("playerPosition", None)
+            if not player_position:
+                print("No player position found")
+                return None, None, None
+            
+            # Try different frame key formats
+            frame_key = self._find_frame_key(bbox_data, frame_number)
+            if not frame_key:
+                print(f"No matching frame key found for frame {frame_number}")
+                return None, None, None
+                
+            frame_data = bbox_data[frame_key]
+            bboxes = self._get_bboxes_from_data(frame_data)
+            
+            if not bboxes or len(bboxes) == 0:
+                print(f"No valid bounding boxes found for frame {frame_key}")
+                return None, None, None
+                
+            # Use position-based method as fallback
+            hitting_player, hitting_partner = self._find_hitting_players(bboxes, player_position)
+            if hitting_player == -1:
+                print("No hitting player found")
+                return None, None, None
+                
+            player_bbox = bboxes[hitting_player]
+            partner_bbox = bboxes[hitting_partner] if hitting_partner != -1 else None
+        else:
+            # Try different frame key formats
+            frame_key = self._find_frame_key(bbox_data, frame_number)
+            if not frame_key:
+                print(f"No matching frame key found for frame {frame_number}")
+                return None, None, None
+                
+            frame_data = bbox_data[frame_key]
+            
+            # Find player and partner by ID and label
+            hitting_player_idx, hitting_partner_idx = self._find_hitting_players_by_id(frame_data, player_id, categories)
+            
+            if hitting_player_idx == -1:
+                print(f"Player with ID {player_id} not found in frame {frame_number}")
+                
+                # Try searching by label if available
+                if player_label:
+                    print(f"Trying to find player by label: {player_label}")
+                    for i, box_data in enumerate(frame_data):
+                        if "label" in box_data and box_data["label"] == player_label:
+                            hitting_player_idx = i
+                            break
+                
+                # If still not found, try position as fallback
+                if hitting_player_idx == -1:
+                    player_position = moment.get("playerPosition", None)
+                    if player_position:
+                        bboxes = self._get_bboxes_from_data(frame_data)
+                        hitting_player = self._find_hitting_player(bboxes, player_position)
+                        if hitting_player != -1:
+                            player_bbox = bboxes[hitting_player]
+                        else:
+                            return None, None, None
+                    else:
+                        return None, None, None
+                else:
+                    player_bbox = self._get_bbox_from_data(frame_data[hitting_player_idx])
+            else:
+                player_bbox = self._get_bbox_from_data(frame_data[hitting_player_idx])
+                # Store the player's label for future frame lookup
+                if "label" in frame_data[hitting_player_idx]:
+                    player_label = frame_data[hitting_player_idx]["label"]
+                
+            partner_bbox = None
+            if hitting_partner_idx != -1:
+                partner_bbox = self._get_bbox_from_data(frame_data[hitting_partner_idx])
+        
+        # Extract player image
+        player_path = self._extract_player(
+            video_id, 
+            frame_number, 
+            player_bbox, 
+            "hitting_player"
+        )
+        
+        # Extract partner image if found
+        partner_path = None
+        if partner_bbox is not None:
+            partner_path = self._extract_player(
+                video_id, 
+                frame_number, 
+                partner_bbox, 
+                "hitting_partner"
+            )
+        
+        # Process player in n=10 frames later
+        player_n_path = None
+        n_frames = 10  # Look exactly 10 frames ahead
+        
+        target_frame = frame_number + n_frames
+        target_frame_key = self._find_frame_key(bbox_data, target_frame)
+        
+        if target_frame_key:
+            target_frame_data = bbox_data[target_frame_key]
+            player_n_idx = -1
+            
+            # First try to find the player by label if available
+            if player_label:
+                for i, box_data in enumerate(target_frame_data):
+                    if "label" in box_data and box_data["label"] == player_label:
+                        player_n_idx = i
+                        break
+            
+            # If not found by label, try by ID
+            if player_n_idx == -1 and player_id is not None:
+                player_n_idx, _ = self._find_hitting_players_by_id(target_frame_data, player_id, categories)
+            
+            # If still not found and have next_moment, try using position
+            if player_n_idx == -1 and next_moment and "playerPosition" in next_moment:
+                next_player_position = next_moment.get("playerPosition")
+                if next_player_position:
+                    bboxes = self._get_bboxes_from_data(target_frame_data)
+                    player_n_idx = self._find_hitting_player(bboxes, next_player_position)
+            
+            # Extract frame if found
+            if player_n_idx != -1:
+                player_n_bbox = self._get_bbox_from_data(target_frame_data[player_n_idx])
+                player_n_path = self._extract_player(
+                    video_id, 
+                    target_frame, 
+                    player_n_bbox, 
+                    "hitting_player_n"
+                )
+            else:
+                print(f"Player not found in frame {target_frame}")
+        
+        return player_path, partner_path, player_n_path
+
+    def _find_frame_key(self, bbox_data, frame_number):
+        """Find the correct key for a frame in the bbox data"""
         possible_keys = [
             f"{frame_number}",           # Plain number: "1"
             f"{frame_number:04d}",       # Zero-padded to 4 digits: "0001"
             f"{frame_number:06d}",       # Zero-padded to 6 digits: "000001"
             f"frame_{frame_number}",     # With frame_ prefix: "frame_1"
             f"frame_{frame_number:04d}", # With frame_ prefix and zero-padding: "frame_0001"
+            f"frame_{frame_number:06d}", # With frame_ prefix and zero-padding: "frame_000001"
         ]
         
-        frame_data = []
         for key in possible_keys:
             if key in bbox_data:
-                frame_key = key
-                frame_data = bbox_data[key]
-                print(f"Found matching frame key: {frame_key} with {len(frame_data)} bboxes")
-                break
-        
-        if not frame_key:
-            # Last resort: try to find a matching key by numeric value
-            for key in bbox_data.keys():
-                try:
-                    # Remove any non-numeric prefix like "frame_"
-                    clean_key = key.split("_")[-1] if "_" in key else key
-                    if int(clean_key) == frame_number:
-                        frame_key = key
-                        frame_data = bbox_data[key]
-                        print(f"Found numeric matching frame key: {frame_key}")
-                        break
-                except ValueError:
-                    continue
-        
-        if not frame_key:
-            print(f"No matching frame key found for frame {frame_number}")
-            print(f"Available keys (first 10): {list(bbox_data.keys())[:10]}")
-            return None, None, None
-            
-        # Get bounding boxes for current frame
-        bboxes = self._get_bboxes_from_data(frame_data)
-        
-        if not bboxes or len(bboxes) == 0:
-            print(f"No valid bounding boxes found for frame {frame_key}")
-            return None, None, None
-            
-        # Find hitting player and partner
-        hitting_player, hitting_partner = self._find_hitting_players(bboxes, player_position)
-        
-        if hitting_player == -1:
-            print("No hitting player found")
-            return None, None, None
-        
-        print(f"Found hitting player at index {hitting_player} and partner at {hitting_partner}")
-            
-        # Process player in next frame (for n frames later)
-        player_n_path = None
-        n_frames = 10  # Default frames ahead to look
-        
-        if next_moment:
-            next_frame_number = next_moment.get("frameNumber", frame_number + n_frames)
-            
-            # Try different formats for next frame too
-            next_frame_key = None
-            next_frame_data = []
-            
-            for key_format in possible_keys:
-                next_key = key_format.replace(str(frame_number), str(next_frame_number))
-                if next_key in bbox_data:
-                    next_frame_key = next_key
-                    next_frame_data = bbox_data[next_key]
-                    print(f"Found next frame key: {next_frame_key} for current frame {frame_key}")
-                    break
-            
-            if not next_frame_key:
-                # Try numeric matching for next frame
-                for key in bbox_data.keys():
-                    try:
-                        clean_key = key.split("_")[-1] if "_" in key else key
-                        if int(clean_key) == next_frame_number:
-                            next_frame_key = key
-                            next_frame_data = bbox_data[key]
-                            print(f"Found numeric matching next frame key: {next_frame_key}")
-                            break
-                    except ValueError:
-                        continue
-            
-            if next_frame_key:
-                next_bboxes = self._get_bboxes_from_data(next_frame_data)
+                return key
                 
-                if next_bboxes and len(next_bboxes) > 0:
-                    next_player_position = next_moment.get("playerPosition", player_position)
-                    hitting_player_n = self._find_hitting_player(next_bboxes, next_player_position)
-                    
-                    if hitting_player_n != -1:
-                        player_n_path = self._extract_player(
-                            video_id, 
-                            next_frame_number, 
-                            next_bboxes[hitting_player_n], 
-                            "hitting_player_n"
-                        )
-                        print(f"Extracted player_n image: {player_n_path}")
+        # Last resort: try to find a matching key by numeric value
+        for key in bbox_data.keys():
+            try:
+                # Remove any non-numeric prefix like "frame_"
+                clean_key = key.split("_")[-1] if "_" in key else key
+                if int(clean_key) == frame_number:
+                    return key
+            except ValueError:
+                continue
+                
+        return None
         
-        # Extract player images
-        player_path = self._extract_player(
-            video_id, 
-            frame_number, 
-            bboxes[hitting_player], 
-            "hitting_player"
-        )
-        print(f"Extracted player image: {player_path}")
+    def _get_bbox_from_data(self, box_data):
+        """Extract normalized bounding box from a single box data entry"""
+        if not box_data or "bbox" not in box_data:
+            return None
+            
+        bbox = box_data["bbox"]
         
-        # Extract partner image if found
-        partner_path = None
-        if hitting_partner != -1:
-            partner_path = self._extract_player(
-                video_id, 
-                frame_number, 
-                bboxes[hitting_partner], 
-                "hitting_partner"
-            )
-            print(f"Extracted partner image: {partner_path}")
-        
-        return player_path, partner_path, player_n_path
+        # Handle different bbox formats
+        if isinstance(bbox, list) and len(bbox) == 4:
+            # Check if format is [x, y, width, height] by examining the values
+            # In [x,y,w,h] format, w and h are typically smaller than x and y
+            x1, y1, x2_or_w, y2_or_h = bbox
+            
+            # If x2 is significantly smaller than x1, assume it's a width
+            if isinstance(x2_or_w, (int, float)) and isinstance(y2_or_h, (int, float)):
+                if x2_or_w < x1 or y2_or_h < y1:
+                    # It's likely [x,y,w,h] format
+                    return [x1, y1, x1 + x2_or_w, y1 + y2_or_h]
+                else:
+                    # If the third and fourth values are larger, assume it's [x1,y1,x2,y2]
+                    # This would be the case for pre-processed bounding boxes
+                    return bbox
+            
+            # Default handling based on comparison between coordinates
+            if isinstance(x2_or_w, int) and x2_or_w > x1:  
+                # Probably [x1,y1,x2,y2] format
+                return bbox
+            else:  
+                # Probably [x,y,width,height] format
+                return [x1, y1, x1 + x2_or_w, y1 + y2_or_h]
+                
+        return None
     
     def _get_bboxes_from_data(self, frame_data):
         """Extract normalized bounding boxes from frame data"""
@@ -473,7 +638,8 @@ class ShotLabellingModel:
             
             return output_path
             
-        except Exception:
+        except Exception as e:
+            print(f"Error extracting player: {e}")
             return None
     
     def _generate_random_player_descriptions(self):
