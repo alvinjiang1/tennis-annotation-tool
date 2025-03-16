@@ -7,13 +7,14 @@ import cv2
 import json
 import os
 from models.shot_labelling.shot_labelling_model import ShotLabellingModel
+from torchvision.models import resnet50
 
 # Single Image CNN (for shot_type, side)
 class TennisCNN(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, pretrained=True):
         super(TennisCNN, self).__init__()
         # Use a pre-trained ResNet model
-        self.backbone = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=False)
+        self.backbone = models.resnet50()
         
         # Replace the final fully connected layer for our classification task
         in_features = self.backbone.fc.in_features
@@ -27,11 +28,11 @@ class TennisCNN(nn.Module):
 
 # Dual Image CNN (for formation, shot_direction, serve_direction, outcome)
 class DualImageTennisCNN(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, pretrained=True):
         super(DualImageTennisCNN, self).__init__()
-        # Create two separate backbones for player and partner/n-frames
-        self.player_backbone = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=False)
-        self.partner_backbone = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=False)
+        # Create two separate backbones for player and partner
+        self.player_backbone = resnet50()
+        self.partner_backbone = resnet50()
         
         self.player_features = nn.Sequential(*list(self.player_backbone.children())[:-1])
         self.partner_features = nn.Sequential(*list(self.partner_backbone.children())[:-1])
@@ -40,7 +41,7 @@ class DualImageTennisCNN(nn.Module):
         self.feature_dim = 2048
         
         self.classifier = nn.Sequential(
-            nn.Linear(self.feature_dim * 2, 512),  # Combine features from both inputs
+            nn.Linear(self.feature_dim * 2, 512),  # Combine features from both players
             nn.ReLU(),
             nn.Dropout(0.3),
             nn.Linear(512, num_classes)
@@ -84,7 +85,7 @@ class CNNModel(ShotLabellingModel):
         ])
         
         # Load model configurations and weights
-        self.cnn_dir = os.path.join("backend", "models", "shot_labelling", "cnn")
+        self.cnn_dir = os.path.join("models", "shot_labelling", "cnn")
         
         # Initialize model storage
         self.models = {}
