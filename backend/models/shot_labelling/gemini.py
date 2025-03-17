@@ -237,13 +237,15 @@ class GeminiModel(ShotLabellingModel):
         shot_type = ""
         if is_serve:            
             shot_type="serve"
-        if is_return:
+        elif is_return:
             shot_type="return"
         else:
             shot_type = self.generate_shot_type(moment, next_moment)
 
         # Determine side
-        side = self.generate_side(moment)
+        side = "forehand"
+        if not is_serve:
+            side = self.generate_side(moment)
         handedness = self.get_player_handedness(player, self.get_categories())
 
         # Determine shot direction    
