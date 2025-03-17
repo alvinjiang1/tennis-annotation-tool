@@ -237,7 +237,7 @@ const RallyAnalysisView: React.FC = () => {
       }
     }));
     
-    showToast(`Created Rally #${newRallyId} starting at frame ${currentFrameIndex + 1}`, "info");
+    showToast(`Created Rally #${newRallyId} starting at frame ${currentFrameIndex+1}`, "info");
   };
 
   const handleToggleMarkEnd = () => {
@@ -393,6 +393,15 @@ const RallyAnalysisView: React.FC = () => {
     
     return rally.hittingMoments.some(moment => moment.frameNumber === currentFrameIndex);
   };
+
+  const isCurrentFrameEndFrame = () => {
+    if (!activeRally) return false;
+    
+    const rally = rallyData.rallies[activeRally];
+    if (!rally) return false;
+    
+    return rally.endFrame === currentFrameIndex;
+  }
 
   const toggleRallyExpansion = (rallyId: string) => {
     setExpandedRallies(prev => ({
@@ -650,11 +659,18 @@ const RallyAnalysisView: React.FC = () => {
                     )}
                     
                     {/* Hitting moment indicator */}
-                    {isCurrentFrameHittingMoment() && (
-                      <div className="absolute top-2 right-2 bg-success text-white p-2 rounded shadow-lg">
-                        Hitting Moment
-                      </div>
-                    )}
+                    <div className="absolute top-2 right-2 flex flex-col gap-2">
+                      {isCurrentFrameHittingMoment() && (
+                        <div className="bg-success text-white p-2 rounded shadow-lg">
+                          Hitting Moment
+                        </div>
+                      )}
+                      {isCurrentFrameEndFrame() && (
+                        <div className="bg-success text-white p-2 rounded shadow-lg">
+                          End Frame
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

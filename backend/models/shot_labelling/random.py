@@ -7,17 +7,15 @@ from models.shot_labelling.shot_labelling_model import ShotLabellingModel
 
 class RandomModel(ShotLabellingModel):
     def __init__(self):
-        super().__init__(id="random", rallies_path="rallies",
-            output_path="generated_labels", pose_coordinates_path="pose_coordinates", 
-            annotations_path="annotations")
+        super().__init__(id="random")
         self.name = "Random Generator"
         self.description = "Random Generator as a placeholder"
         
-    def generate_shot_labels(self, hitting_moments, rallies_data, pose_data, categories, player_descriptions):
+    def generate_shot_labels(self, hitting_moments, rally_info, pose_data, categories, player_descriptions):
         """Generate labels for a single rally based on hitting moments and additional information"""
         
         # Get net position from rally data if available
-        net_position = rallies_data.get("netPosition", None)
+        net_position = self.net_position
         
         # Generate events for each hitting moment
         events = []            

@@ -1,3 +1,4 @@
+import cv2
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
@@ -7,9 +8,10 @@ import os
 from models.shot_labelling.shot_labelling_model import ShotLabellingModel
 import torchvision.models as models
 
+DATA_DIR = "data"
 # Single Image CNN (for shot_type, side)
 class TennisCNN(nn.Module):
-    def __init__(self, num_classes, pretrained=True):
+    def __init__(self, num_classes, pretrained=True):        
         super(TennisCNN, self).__init__()
         # Use a pre-trained ResNet model
         self.backbone = models.resnet50()
@@ -64,13 +66,14 @@ class DualImageTennisCNN(nn.Module):
 
 class CNNModel(ShotLabellingModel):
     def __init__(self):
-        super().__init__(id="cnn", rallies_path="rallies",
-                        output_path="generated_labels", pose_coordinates_path="pose_coordinates",
-                        annotations_path="annotations")
+        super().__init__(id="cnn")
         
         self.name = "CNN Shot Predictor"
         self.description = "CNN-based shot label generator using trained models"
         
+        # Image extraction related paths        
+        self.cnn_data_dir = os.path.join(DATA_DIR, "cnn")
+
         # Set up device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {self.device}")
@@ -174,6 +177,191 @@ class CNNModel(ShotLabellingModel):
                 import traceback
                 traceback.print_exc()
                 
+    def extract_player_images(self, video_id, frame_number, moment, next_moment, bbox_data=None):
+        """Extract and save player images for CNN input"""
+        print(f"Extracting player images from {video_id} for frame {frame_number}")
+        # Load bbox data if not provided
+        if bbox_data is None:
+            if not hasattr(self, 'bbox_file') or not self.bbox_file or not os.path.exists(self.bbox_file):
+                print(f"No bbox file found: {getattr(self, 'bbox_file', 'Not set')}")
+                return None, None, None
+                
+            try:
+                with open(self.bbox_file, 'r') as f:
+                    bbox_data = json.load(f)
+                    print(f"Loaded bbox data with {len(bbox_data)} entries")
+                    # Print first few keys to debug
+                    print(f"Sample bbox keys: {list(bbox_data.keys())[:5]}")
+            except Exception as e:
+                print(f"Error reading bbox file: {e}")
+                return None, None, None
+                
+        # Create output directories
+        cnn_data_dir = os.path.join(self.cnn_data_dir, video_id)
+        os.makedirs(os.path.join(cnn_data_dir, "hitting_player"), exist_ok=True)
+        os.makedirs(os.path.join(cnn_data_dir, "hitting_partner"), exist_ok=True)
+        os.makedirs(os.path.join(cnn_data_dir, "hitting_player_n"), exist_ok=True)
+        
+        # Get categories to map player IDs to labels
+        categories = self.get_categories()
+        
+        # Get player ID and label
+        player_id = None
+        player_label = None
+        
+        if "playerId" in moment:
+            player_id = moment["playerId"]
+            # Find corresponding label from categories
+            for category in categories:
+                if category.get('id') == player_id:
+                    player_label = category.get('name')
+                    break
+        elif "boundingBoxes" in moment:
+            for box in moment["boundingBoxes"]:
+                if "category_id" in box:
+                    player_id = box["category_id"]
+                    if "label" in box:
+                        player_label = box["label"]
+                    break
+                    
+        if player_id is None and player_label is None:
+            print("No player ID or label found")
+            
+            # Fallback to position-based method
+            player_position = moment.get("playerPosition", None)
+            if not player_position:
+                print("No player position found")
+                return None, None, None
+            
+            # Try different frame key formats
+            frame_key = self._find_frame_key(bbox_data, frame_number)
+            if not frame_key:
+                print(f"No matching frame key found for frame {frame_number}")
+                return None, None, None
+                
+            frame_data = bbox_data[frame_key]
+            bboxes = self._get_bboxes_from_data(frame_data)
+            
+            if not bboxes or len(bboxes) == 0:
+                print(f"No valid bounding boxes found for frame {frame_key}")
+                return None, None, None
+                
+            # Use position-based method as fallback
+            hitting_player, hitting_partner = self._find_hitting_players(bboxes, player_position)
+            if hitting_player == -1:
+                print("No hitting player found")
+                return None, None, None
+                
+            player_bbox = bboxes[hitting_player]
+            partner_bbox = bboxes[hitting_partner] if hitting_partner != -1 else None
+        else:
+            # Try different frame key formats
+            frame_key = self._find_frame_key(bbox_data, frame_number)
+            if not frame_key:
+                print(f"No matching frame key found for frame {frame_number}")
+                return None, None, None
+                
+            frame_data = bbox_data[frame_key]
+            
+            # Find player and partner by ID and label
+            hitting_player_idx, hitting_partner_idx = self._find_hitting_players_by_id(frame_data, player_id, categories)
+            
+            if hitting_player_idx == -1:
+                print(f"Player with ID {player_id} not found in frame {frame_number}")
+                
+                # Try searching by label if available
+                if player_label:
+                    print(f"Trying to find player by label: {player_label}")
+                    for i, box_data in enumerate(frame_data):
+                        if "label" in box_data and box_data["label"] == player_label:
+                            hitting_player_idx = i
+                            break
+                
+                # If still not found, try position as fallback
+                if hitting_player_idx == -1:
+                    player_position = moment.get("playerPosition", None)
+                    if player_position:
+                        bboxes = self._get_bboxes_from_data(frame_data)
+                        hitting_player = self._find_hitting_player(bboxes, player_position)
+                        if hitting_player != -1:
+                            player_bbox = bboxes[hitting_player]
+                        else:
+                            return None, None, None
+                    else:
+                        return None, None, None
+                else:
+                    player_bbox = self._get_bbox_from_data(frame_data[hitting_player_idx])
+            else:
+                player_bbox = self._get_bbox_from_data(frame_data[hitting_player_idx])
+                # Store the player's label for future frame lookup
+                if "label" in frame_data[hitting_player_idx]:
+                    player_label = frame_data[hitting_player_idx]["label"]
+                
+            partner_bbox = None
+            if hitting_partner_idx != -1:
+                partner_bbox = self._get_bbox_from_data(frame_data[hitting_partner_idx])
+        
+        # Extract player image
+        player_path = self._extract_player(
+            video_id, 
+            frame_number, 
+            player_bbox, 
+            "hitting_player"
+        )
+        
+        # Extract partner image if found
+        partner_path = None
+        if partner_bbox is not None:
+            partner_path = self._extract_player(
+                video_id, 
+                frame_number, 
+                partner_bbox, 
+                "hitting_partner"
+            )
+        
+        # Process player in n=10 frames later
+        player_n_path = None
+        n_frames = 10  # Look exactly 10 frames ahead
+        
+        target_frame = frame_number + n_frames
+        target_frame_key = self._find_frame_key(bbox_data, target_frame)
+        
+        if target_frame_key:
+            target_frame_data = bbox_data[target_frame_key]
+            player_n_idx = -1
+            
+            # First try to find the player by label if available
+            if player_label:
+                for i, box_data in enumerate(target_frame_data):
+                    if "label" in box_data and box_data["label"] == player_label:
+                        player_n_idx = i
+                        break
+            
+            # If not found by label, try by ID
+            if player_n_idx == -1 and player_id is not None:
+                player_n_idx, _ = self._find_hitting_players_by_id(target_frame_data, player_id, categories)
+            
+            # If still not found and have next_moment, try using position
+            if player_n_idx == -1 and next_moment and "playerPosition" in next_moment:
+                next_player_position = next_moment.get("playerPosition")
+                if next_player_position:
+                    bboxes = self._get_bboxes_from_data(target_frame_data)
+                    player_n_idx = self._find_hitting_player(bboxes, next_player_position)
+            
+            # Extract frame if found
+            if player_n_idx != -1:
+                player_n_bbox = self._get_bbox_from_data(target_frame_data[player_n_idx])
+                player_n_path = self._extract_player(
+                    video_id, 
+                    target_frame, 
+                    player_n_bbox, 
+                    "hitting_player_n"
+                )
+            else:
+                print(f"Player not found in frame {target_frame}")
+        
+        return player_path, partner_path, player_n_path
+    
     def predict_side(self, player_path, is_serve=False):
         """Predict forehand/backhand side"""
         # Serve is always forehand
@@ -208,6 +396,80 @@ class CNNModel(ShotLabellingModel):
             print(f"Error predicting side: {str(e)}")
             return "forehand"
     
+    def _extract_player(self, video_id, frame_number, bbox, output_type):
+        """Extract player from image using bounding box and save to file"""
+        # Get path to frame
+        frames_dir = os.path.join(self.raw_frames_dir, video_id)
+        
+        # Try different frame naming formats
+        frame_formats = [
+            f"{frame_number:04d}.jpg",
+            f"{frame_number:06d}.jpg",
+            f"frame_{frame_number:04d}.jpg",
+            f"frame_{frame_number:06d}.jpg"
+        ]
+        
+        frame_path = None
+        for fmt in frame_formats:
+            path = os.path.join(frames_dir, fmt)
+            if os.path.exists(path):
+                frame_path = path
+                break
+                
+        if not frame_path:
+            return None
+        
+        # Define output path
+        output_dir = os.path.join(self.cnn_data_dir, video_id, output_type)
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, f"frame_{frame_number:04d}.jpg")
+        
+        try:
+            # Read the image
+            image = cv2.imread(frame_path)
+            if image is None:
+                return None
+            
+            # Update width/height based on actual image dimensions
+            self.width, self.height = image.shape[1], image.shape[0]
+            
+            # Extract bbox coordinates
+            x_min, y_min, x_max, y_max = bbox
+            
+            # Scale the bbox by 2x while keeping the center
+            center_x = (x_min + x_max) / 2
+            center_y = (y_min + y_max) / 2
+            width = x_max - x_min
+            height = y_max - y_min
+            
+            # Double the size
+            new_width = width * 2
+            new_height = height * 2
+            
+            # Calculate new bbox with bounds checking
+            x_min_new = max(0, int(center_x - new_width / 2))
+            y_min_new = max(0, int(center_y - new_height / 2))
+            x_max_new = min(self.width, int(center_x + new_width / 2))
+            y_max_new = min(self.height, int(center_y + new_height / 2))
+            
+            # Crop the image with the expanded bbox
+            crop = image[y_min_new:y_max_new, x_min_new:x_max_new]
+            
+            if crop.size == 0:
+                return None
+                
+            # Resize to 224x224 for CNN input
+            resized = cv2.resize(crop, (224, 224))
+            
+            # Save the cropped image
+            cv2.imwrite(output_path, resized)
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"Error extracting player: {e}")
+            return None
+
     def predict_shot_type(self, player_path, is_serve=False, is_return=False):
         """Predict shot type (volley, lob, etc)"""
         # Handle fixed cases
@@ -433,13 +695,13 @@ class CNNModel(ShotLabellingModel):
             print(f"Error predicting outcome: {str(e)}")
             return "err"
     
-    def generate_shot_labels(self, hitting_moments, rallies_data, pose_data, categories, player_descriptions):
+    def generate_shot_labels(self, hitting_moments, rally_info, pose_data, categories, player_descriptions):
         """Generate labels for a single rally based on hitting moments and additional information"""
         # Get net position from rally data if available
-        net_position = rallies_data.get("netPosition", None)
+        net_position = self.net_position
         
-        # Extract video_id from rallies_data
-        video_id = rallies_data.get('video_id')
+        # Extract video_id
+        video_id = self.video_id
         if not video_id and hitting_moments and len(hitting_moments) > 0:
             # Try to get from hitting moments
             for key in ['videoId', 'video_id', 'video']:

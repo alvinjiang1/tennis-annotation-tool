@@ -59,7 +59,7 @@ const EndFrameMarker: React.FC<EndFrameMarkerProps> = ({
       if (imgRef.current) {
         imgRef.current.src = img.src;        
       }
-
+      
       setIsLoading(false);
     };
 
@@ -139,6 +139,7 @@ const EndFrameMarker: React.FC<EndFrameMarkerProps> = ({
     if (!canvasSize.width || !canvasSize.height) return;
     if (!imageSize.width || !imageSize.height) return;
     if (!canvasRef.current || !imgRef.current) return;
+    if (!imgRef.current.complete) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -152,7 +153,12 @@ const EndFrameMarker: React.FC<EndFrameMarkerProps> = ({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);    
     ctx.drawImage(imgRef.current, 0, 0, canvasSize.width, canvasSize.height);
-
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(10, 10, 240, 25);
+    ctx.fillStyle = "#fff";
+    ctx.font = "12px Arial";
+    ctx.fillText("Click on the final ball position", 15, 25);
+    setIsLoading(false)
     if (ballPosition) {
       ctx.fillStyle = "red";
       ctx.beginPath();
