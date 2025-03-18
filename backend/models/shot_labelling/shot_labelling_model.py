@@ -43,17 +43,18 @@ class ShotLabellingModel:
         if not net_position or not player_position:
             return random.choice(["near_deuce", "near_ad", "far_deuce", "far_ad"])
         is_near = player_position.get('y', 0) > net_position.get('y', 0)
-        is_deuce = player_position.get('x', 0) < net_position.get('x', 0)
+        player_left_of_net = player_position.get('x', 0) < net_position.get('x', 0) 
         
         if is_near:
-            return "near_deuce" if is_deuce else "near_ad"
+            return "near_ad" if player_left_of_net else "near_deuce"
         else:
-            return "far_deuce" if is_deuce else "far_ad"      
+            return "far_deuce" if player_left_of_net else "far_ad"      
     
     @staticmethod
     def get_shot_direction(handedness, side, start, end):
         if ("near" in start and "near" in end) or ("far" in start and "far" in end):
-            raise Exception('Start and end positions cannot be on the same side')
+            print('Start and end positions cannot be on the same side. Ignoring...')
+            # raise Exception('Start and end positions cannot be on the same side')
         start_court_pos = "ad" if "ad" in start else "deuce"
         end_court_pos = "ad" if "ad" in end else "deuce"
         return POSSIBLE_SHOT_DIRECTIONS[handedness][side][f'{start_court_pos}_{end_court_pos}']      
@@ -85,21 +86,27 @@ class ShotLabellingModel:
         self.rallies_file = os.path.join(self.rallies_path, f'{video_id}_rallies.json')
         self.pose_coordinates_file = os.path.join(self.pose_coordinates_path, f'{video_id}_pose.json')
         self.pose_frames_dir = os.path.join(self.pose_frames_dir, video_id)
-        self.output_file = os.path.join(self.output_path, f'{video_id}_labelled_{self.id}.json')
+        self.output_file = os.path.join(self.output_path, f'{video_id}_labelled.json')
         self.bbox_file = os.path.join(self.bbox_dir, f"{video_id}_boxes.json")
 
-    def get_images_from_frame_numbers(self, start_frame, end_frame, step_size=None):
-        """Fetches images from the video frame numbers with step size"""        
-        images = []        
-        frame_numbers = range(start_frame, end_frame + 1, step_size) if step_size else [start_frame, end_frame]
-        for frame_number in frame_numbers:
-            frame_name = "%04d_pred.jpg" % frame_number
-            full_frame_path = os.path.join(self.pose_frames_dir, frame_name)                        
-            if not os.path.exists(full_frame_path):
-                print(f"Frame: {frame_name} not found. Aborting")
-                return []        
-            images.append(PIL.Image.open(full_frame_path))
+    def get_images_from_frame_numbers(self, start_frame, end_frame, step_size=1):
+        """Fetches images from the video frame numbers with customizable step size"""
+        images = []
+        frame_numbers = range(start_frame, end_frame + 1, step_size)
+        for frame_number in frame_numbers:            
+            image = self.get_image_from_frame_number(frame_number)
+            if image:
+                images.append(image)
         return images
+    
+    def get_image_from_frame_number(self, frame_number):
+        """Fetches image from the video frame number"""
+        frame_name = "%04d_pred.jpg" % frame_number                
+        full_frame_path = os.path.join(self.pose_frames_dir, frame_name)        
+        if not os.path.exists(full_frame_path):
+            print(f"Frame: {frame_name} not found. Skipping")
+            return None        
+        return PIL.Image.open(full_frame_path)
             
     def get_rallies_data(self):
         """Gets the rallies json file"""
