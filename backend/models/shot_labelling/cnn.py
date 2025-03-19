@@ -286,8 +286,10 @@ class CNNModel(ShotLabellingModel):
                         if hitting_player != -1:
                             player_bbox = bboxes[hitting_player]
                         else:
+                            print("Player not found by position")
                             return None, None, None
                     else:
+                        print("No player position found")
                         return None, None, None
                 else:
                     player_bbox = self._get_bbox_from_data(frame_data[hitting_player_idx])
@@ -506,12 +508,14 @@ class CNNModel(ShotLabellingModel):
         """Predict formation (conventional, i-formation, etc)"""
         # Non-serve shots have a fixed formation
         if not is_serve:
+            print(f"Formation: Non-serve")
             return "non-serve"
         
         # If missing images or model, default to conventional
         if not player_path or not os.path.exists(player_path) or \
            not partner_path or not os.path.exists(partner_path) or \
            "formation" not in self.models:
+            print("Missing player or partner image or model, using conventional")
             return "conventional"
         
         # Predict using the dual image model
@@ -532,11 +536,11 @@ class CNNModel(ShotLabellingModel):
                 # Get the label
                 predicted_idx = predicted.item()
                 formation = self.reverse_mappings["formation"].get(predicted_idx, "conventional")
-                print(f"Predicted formation: {formation}")
+                print(f"Predicted formation: {formation} with outputs: {outputs}")
                 return formation
                 
         except Exception as e:
-            print(f"Error predicting formation: {str(e)}")
+            print(f"Error predicting formation: {str(e)}, using conventional")
             return "conventional"
     
     def predict_direction(self, player_path, player_n_path, is_serve=False, court_position=None, side=None, handedness=None):
@@ -612,8 +616,11 @@ class CNNModel(ShotLabellingModel):
             
             # Apply tennis strategy rules based on handedness, court position, and side
             if court_position and side and handedness:
-                return self.correct_direction_by_strategy(predicted_direction, court_position, side, handedness)
+                correct_direction = self.correct_direction_by_strategy(predicted_direction, court_position, side, handedness)
+                print(f'court_position: {court_position}, side: {side}, handedness: {handedness},  initial direction: {predicted_direction}, correct_direction: {correct_direction}')
+                return correct_direction
             else:
+                print(f'no court_position, side, or handedness')
                 return predicted_direction
     
     def correct_direction_by_strategy(self, predicted_direction, court_position, side, handedness):
@@ -629,11 +636,11 @@ class CNNModel(ShotLabellingModel):
                     return predicted_direction  # Use model prediction
                 elif side == "backhand":
                     # Backhand from deuce court - typically inside-in or inside-out
-                    return "ii" if predicted_direction == "cc" else "io"
+                    return "ii" if predicted_direction == "dl" else "io"
             elif court_side == "ad":
                 if side == "forehand":
                     # Forehand from ad court - typically inside-in or inside-out
-                    return "ii" if predicted_direction == "cc" else "io"
+                    return "ii" if predicted_direction == "dl" else "io"
                 elif side == "backhand":
                     # Backhand from ad court - typically CC or DL
                     return predicted_direction  # Use model prediction
@@ -643,7 +650,7 @@ class CNNModel(ShotLabellingModel):
             if court_side == "deuce":
                 if side == "forehand":
                     # Forehand from deuce court - typically inside-in or inside-out
-                    return "ii" if predicted_direction == "cc" else "io"
+                    return "ii" if predicted_direction == "dl" else "io"
                 elif side == "backhand":
                     # Backhand from deuce court - typically CC or DL
                     return predicted_direction  # Use model prediction
@@ -653,7 +660,7 @@ class CNNModel(ShotLabellingModel):
                     return predicted_direction  # Use model prediction
                 elif side == "backhand":
                     # Backhand from ad court - typically inside-in or inside-out
-                    return "ii" if predicted_direction == "cc" else "io"
+                    return "ii" if predicted_direction == "dl" else "io"
         
         # For unknown handedness or other cases, use the model prediction
         return predicted_direction
