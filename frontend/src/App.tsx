@@ -20,19 +20,19 @@ const App: React.FC = () => {
         <header className="bg-primary text-primary-content shadow-lg">
           <div className="container mx-auto p-4 flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <button 
+              <button
                 className="btn btn-circle btn-ghost lg:hidden"
                 onClick={toggleSidebar}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" 
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                     className="w-6 h-6 stroke-current">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
                       d="M4 6h16M4 12h16M4 18h16"></path>
                 </svg>
               </button>
               <h1 className="text-2xl font-bold flex items-center">
-                <span className="mr-2">🎾</span>
-                Tennis Annotation Tool
+              <img src="/logo.png" alt="Logo" className="mr-2 w-16 h-16" />
+                TennisDINO — Tennis Annotation Tool
               </h1>
             </div>
             <ThemeSwitcher />
@@ -42,8 +42,8 @@ const App: React.FC = () => {
         {/* Main content */}
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar */}
-          <Sidebar 
-            setToolbarTab={setToolbarTab} 
+          <Sidebar
+            setToolbarTab={setToolbarTab}
             currentTab={toolbarTab}
             collapsed={sidebarCollapsed}
             setCollapsed={setSidebarCollapsed}
