@@ -17,7 +17,7 @@ export const useToast = () => {
     
     const timer = setTimeout(() => {
       setToasts(currentToasts => currentToasts.slice(1));
-    }, 5000);
+    }, 5000);    
     
     return () => clearTimeout(timer);
   }, [toasts]);

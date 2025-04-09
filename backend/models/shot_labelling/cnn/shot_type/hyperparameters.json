@@ -1,0 +1,20 @@
+{
+    "batch_size": 32,
+    "num_epochs": 50,
+    "learning_rate": 0.0001,
+    "max_poses": 4,
+    "model": "ResNet50",
+    "class_balanced": true,
+    "class_mappings": {
+        "lob": 0,
+        "smash": 1,
+        "swing": 2,
+        "volley": 3
+    },
+    "class_counts": {
+        "2": 516,
+        "1": 83,
+        "3": 170,
+        "0": 26
+    }
+}

@@ -98,9 +98,7 @@ const HittingMomentMarker: React.FC<HittingMomentMarkerProps> = ({
       
       if (imgRef.current) {
         imgRef.current.src = img.src;
-      }
-      
-      setIsLoading(false);
+      }            
     };
     
     img.onerror = (e) => {
@@ -299,7 +297,7 @@ const HittingMomentMarker: React.FC<HittingMomentMarkerProps> = ({
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw the image
+    // Draw the image    
     ctx.drawImage(imgRef.current, 0, 0, canvasSize.width, canvasSize.height);
     
     // Draw bounding boxes with scaled coordinates

@@ -407,8 +407,7 @@ def save_rallies():
         # Save rally data
         rally_file = os.path.join(rally_dir, f"{video_id}_rallies.json")
         with open(rally_file, "w") as f:
-            json.dump(rally_data, f, indent=2)
-        
+            json.dump(rally_data, f, indent=2)        
         return jsonify({"message": "Rally data saved successfully"}), 200
     except Exception as e:
         print(f"Error saving rally data: {e}")

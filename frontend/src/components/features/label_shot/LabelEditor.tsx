@@ -13,6 +13,8 @@ interface LabelEditorProps {
   label: ShotLabel;
   players: any;
   onUpdateLabel: (updatedLabel: ShotLabel) => void;
+  allFrames: string[]; // Add array of all frames
+  currentFrameIndex: number; // Add the current frame index
 }
 
 // Court Position options
@@ -41,7 +43,9 @@ const LabelEditor: React.FC<LabelEditorProps> = ({
   frameUrl, 
   label, 
   players, 
-  onUpdateLabel 
+  onUpdateLabel,
+  allFrames,
+  currentFrameIndex
 }) => {
   const [parsedLabel, setParsedLabel] = useState<{
     courtPosition: string;
@@ -62,6 +66,13 @@ const LabelEditor: React.FC<LabelEditorProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  
+  // Add state for frame preview offset
+  const [previewOffset, setPreviewOffset] = useState(0);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  
+  // Get the maximum preview offset possible based on available frames
+  const maxPreviewOffset = Math.min(45, allFrames.length - currentFrameIndex - 1);
   
   // Parse the label into components when it changes
   useEffect(() => {
@@ -101,6 +112,12 @@ const LabelEditor: React.FC<LabelEditorProps> = ({
       });
     }
   }, [label]);
+  
+  // Reset preview offset when selected shot changes
+  useEffect(() => {
+    setPreviewOffset(0);
+    setIsPreviewMode(false);
+  }, [label.frame]);
   
   // Update a specific component of the label
   const handleComponentChange = (component: string, value: string) => {
@@ -258,6 +275,45 @@ const LabelEditor: React.FC<LabelEditorProps> = ({
     return isServe ? serveFormations : nonServeFormation;
   };
   
+  // Handle preview scrolling
+  const handleScrollFrames = (offset: number) => {
+    // Don't allow scrolling past available frames
+    if (currentFrameIndex + offset >= 0 && currentFrameIndex + offset < allFrames.length) {
+      setPreviewOffset(offset);
+      setIsPreviewMode(offset !== 0);
+    }
+  };
+  
+  // Get the current displayed frame URL based on preview offset
+  const getCurrentDisplayedFrame = () => {
+    const targetIndex = currentFrameIndex + previewOffset;
+    if (targetIndex >= 0 && targetIndex < allFrames.length) {
+      return allFrames[targetIndex];
+    }
+    return frameUrl; // Default to original frame if out of bounds
+  };
+  
+  // Handle frame navigation with keyboard
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isEditing) return; // Don't intercept keys while editing
+      
+      if (e.key === 'ArrowRight') {
+        handleScrollFrames(Math.min(previewOffset + 1, maxPreviewOffset));
+        e.preventDefault();
+      } else if (e.key === 'ArrowLeft') {
+        handleScrollFrames(Math.max(previewOffset - 1, -currentFrameIndex));
+        e.preventDefault();
+      } else if (e.key === 'Home' || e.key === '0') {
+        handleScrollFrames(0); // Return to shot frame
+        e.preventDefault();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewOffset, isEditing, currentFrameIndex, maxPreviewOffset]);
+
   if (!frameUrl) {
     return (
       <div className="alert alert-warning">
@@ -275,7 +331,7 @@ const LabelEditor: React.FC<LabelEditorProps> = ({
       <div className="card bg-base-200 p-4">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
-            <div className="badge badge-primary">Frame {label.frame}</div>
+            <div className="badge badge-primary">Frame {label.frame + previewOffset + 1}</div>
             <div className="badge badge-secondary">
               Player {label.player} 
               {label.handedness && (
@@ -291,6 +347,13 @@ const LabelEditor: React.FC<LabelEditorProps> = ({
               {label.outcome === 'in' ? 'In' : 
                label.outcome === 'err' ? 'Error' : 'Winner'}
             </div>
+            
+            {/* Indicate if in preview mode */}
+            {isPreviewMode && (
+              <div className="badge badge-warning">
+                Preview: {previewOffset > 0 ? '+' : ''}{previewOffset} frames
+              </div>
+            )}
           </div>
           
           <button
@@ -301,10 +364,76 @@ const LabelEditor: React.FC<LabelEditorProps> = ({
           </button>
         </div>
         
+        {/* Frame navigation controls */}
+        <div className="flex justify-between items-center mb-4">
+          <button 
+            className="btn btn-sm btn-outline"
+            onClick={() => handleScrollFrames(Math.max(previewOffset - 5, -currentFrameIndex))}
+            disabled={previewOffset <= -currentFrameIndex}
+            title="Go back 5 frames"
+          >
+            ◀◀ -5
+          </button>
+          
+          <button 
+            className="btn btn-sm btn-outline"
+            onClick={() => handleScrollFrames(previewOffset - 1)}
+            disabled={previewOffset <= -currentFrameIndex}
+            title="Previous frame"
+          >
+            ◀ Prev
+          </button>
+          
+          <button 
+            className="btn btn-sm"
+            onClick={() => handleScrollFrames(0)}
+            disabled={previewOffset === 0}
+            title="Return to shot frame"
+          >
+            🏠 Shot Frame
+          </button>
+          
+          <button 
+            className="btn btn-sm btn-outline"
+            onClick={() => handleScrollFrames(previewOffset + 1)}
+            disabled={previewOffset >= maxPreviewOffset}
+            title="Next frame"
+          >
+            Next ▶
+          </button>
+          
+          <button 
+            className="btn btn-sm btn-outline"
+            onClick={() => handleScrollFrames(Math.min(previewOffset + 5, maxPreviewOffset))}
+            disabled={previewOffset >= maxPreviewOffset}
+            title="Go forward 5 frames"
+          >
+            +5 ▶▶
+          </button>
+        </div>
+        
+        {/* Frame slider */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-sm font-medium w-24 text-right">
+            Frame {label.frame + 1}
+          </span>
+          <input 
+            type="range" 
+            min={-currentFrameIndex} 
+            max={maxPreviewOffset} 
+            value={previewOffset} 
+            onChange={(e) => handleScrollFrames(parseInt(e.target.value))}
+            className="range range-sm flex-grow"
+          />
+          <span className="text-sm font-medium w-24">
+            {previewOffset > 0 ? `+${previewOffset}` : previewOffset} frames
+          </span>
+        </div>
+        
         <div className="flex justify-center">
           <div className="relative max-w-full">
             <img 
-              src={frameUrl} 
+              src={getCurrentDisplayedFrame()} 
               alt="Shot Frame" 
               className="rounded-lg shadow-md max-w-full max-h-[50vh] mx-auto"
               onLoad={() => setImageLoaded(true)}
@@ -315,7 +444,19 @@ const LabelEditor: React.FC<LabelEditorProps> = ({
                 <span className="loading loading-spinner loading-lg"></span>
               </div>
             )}
+            
+            {/* Show preview overlay if not on the shot frame */}
+            {isPreviewMode && (
+              <div className="absolute top-2 left-2 bg-warning text-warning-content px-3 py-1 rounded-lg opacity-90 shadow">
+                Preview: {previewOffset > 0 ? '+' : ''}{previewOffset} frames
+              </div>
+            )}
           </div>
+        </div>
+        
+        {/* Frame navigation tips */}
+        <div className="mt-2 text-xs text-center text-base-content/70">
+          <p>Use arrow keys ← → to navigate frames, Home key to return to shot frame</p>
         </div>
       </div>
       

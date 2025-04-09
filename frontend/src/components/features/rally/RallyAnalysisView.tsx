@@ -5,6 +5,7 @@ import BoundingBoxEditor from "./BoundingBoxEditor";
 import RallyControls from "./RallyControls";
 import HittingMomentMarker from "./HittingMomentMarker";
 import NetPositionMarker from "./NetPositionMarker";
+import EndFrameMarker from "./EndFrameMarker";
 
 interface RallyData {
   netPosition: { x: number, y: number } | null;
@@ -32,6 +33,8 @@ const RallyAnalysisView: React.FC = () => {
   const [currentRallyId, setCurrentRallyId] = useState<string>("None");
   const [activeRally, setActiveRally] = useState<string | null>(null);
   const [isMarkingHitting, setIsMarkingHitting] = useState<boolean>(false);
+  const [isMarkingEnd, setIsMarkingEnd] = useState<boolean>(false);
+  const [endFrameBallPosition, setEndFrameBallPosition] = useState<{ x: number, y: number } | null>(null);
   const [netPosition, setNetPosition] = useState<{ x: number, y: number } | null>(null);
   const [isSettingNet, setIsSettingNet] = useState<boolean>(false);
   const [rallyData, setRallyData] = useState<RallyData>({
@@ -65,6 +68,82 @@ const RallyAnalysisView: React.FC = () => {
     }
   }, [videoId]);
 
+  // Add keyboard shortcuts for frame navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if we're in a text input, textarea, or select
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      
+      // Skip keyboard navigation if in editing mode, setting net, or marking hitting
+      if (isEditing || isSettingNet || isMarkingHitting || isMarkingEnd) {
+        return;
+      }
+      
+      switch (e.key) {
+        case 'ArrowLeft':
+          // Previous frame
+          handlePreviousFrame();
+          e.preventDefault();
+          break;
+          
+        case 'ArrowRight':
+          // Next frame
+          handleNextFrame();
+          e.preventDefault();
+          break;
+          
+        case 'Home':
+          // First frame
+          handleJumpToFrame(0);
+          e.preventDefault();
+          break;
+          
+        case 'End':
+          // Last frame
+          handleJumpToFrame(frames.length - 1);
+          e.preventDefault();
+          break;
+          
+        case 'PageUp':
+          // Jump back 10 frames
+          handleJumpToFrame(Math.max(0, currentFrameIndex - 10));
+          e.preventDefault();
+          break;
+          
+        case 'PageDown':
+          // Jump forward 10 frames
+          handleJumpToFrame(Math.min(frames.length - 1, currentFrameIndex + 10));
+          e.preventDefault();
+          break;
+          
+        case 'h':
+          // Mark hitting moment (if in active rally)
+          if (activeRally && !isMarkingHitting) {
+            handleToggleMarkHitting();
+            e.preventDefault();
+          }
+          break;
+          
+        case 'n':
+          // Toggle net lines
+          if (netPosition) {
+            setShowNetLines(!showNetLines);
+            e.preventDefault();
+          }
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentFrameIndex, frames.length, isEditing, isSettingNet, isMarkingHitting, activeRally, netPosition, showNetLines]);
+
   const fetchPlayerCategories = async () => {
     try {
       const response = await fetch(`${backendUrl}/api/annotation/get/${videoId}`);
@@ -74,7 +153,7 @@ const RallyAnalysisView: React.FC = () => {
           const playerMap: {[key: number]: string} = {}; // Add proper type annotation here
           data.categories.forEach((cat: {id: number, name: string}) => {
             playerMap[cat.id] = cat.name;
-          });          
+          });
           setPlayerNames(playerMap);
         }
       }
@@ -87,7 +166,7 @@ const RallyAnalysisView: React.FC = () => {
     try {
       const response = await fetch(`${backendUrl}/api/annotation/get-rallies/${videoId}`);
       if (response.ok) {
-        const data = await response.json();        
+        const data = await response.json();
         setRallyData(data);
         if (data.netPosition) {
           setNetPosition(data.netPosition);
@@ -111,12 +190,12 @@ const RallyAnalysisView: React.FC = () => {
       // Use inference frames if available, otherwise use regular frames
       const endpoint = `${backendUrl}/api/inference/frames/${videoId}`;
       const response = await fetch(endpoint);
-          
+      
       if (response.ok) {
-        const data = await response.json();        
-        const frameUrls = data.frames.map((frame: string) =>           
+        const data = await response.json();
+        const frameUrls = data.frames.map((frame: string) => 
           `${backendUrl}/api/inference/frame/${videoId}/${frame}`
-        );        
+        );
         setFrames(frameUrls);
         setCurrentFrameIndex(0);
         showToast(`Loaded ${frameUrls.length} frames`, "success");
@@ -140,8 +219,8 @@ const RallyAnalysisView: React.FC = () => {
     }
   };
 
-  const handleStartRally = () => {        
-    const newRallyId = Object.keys(rallyData.rallies ?? {}).length + 1;
+  const handleStartRally = () => {
+    const newRallyId = Object.keys(rallyData.rallies).length + 1;
     setCurrentRallyId(newRallyId.toString());
     setActiveRally(newRallyId.toString());
     
@@ -158,14 +237,26 @@ const RallyAnalysisView: React.FC = () => {
       }
     }));
     
-    showToast(`Created Rally #${newRallyId} starting at frame ${currentFrameIndex + 1}`, "info");
+    showToast(`Created Rally #${newRallyId} starting at frame ${currentFrameIndex+1}`, "info");
   };
 
-  const handleSetRallyEndFrame = () => {
+  const handleToggleMarkEnd = () => {
     if (!activeRally) {
       showToast("Please select or create a rally first", "warning");
       return;
-    }
+    }    
+
+    setIsMarkingEnd(!isMarkingEnd);    
+    if (!isMarkingEnd) {      
+      showToast("Click on the ball position in the final frame", "info");
+    }    
+  };
+
+  const handleMarkEndFrame = (frameNumber: number, ballPosition: { x: number, y: number }) => {
+    if (!activeRally) {
+      showToast("Please select or create a rally first", "warning");
+      return;
+    }    
     
     setRallyData(prev => ({
       ...prev,
@@ -173,12 +264,13 @@ const RallyAnalysisView: React.FC = () => {
         ...prev.rallies,
         [activeRally]: {
           ...prev.rallies[activeRally],
-          endFrame: currentFrameIndex
+          endFrame: frameNumber,   
+          endBallPosition: ballPosition       
         }
       }
-    }));
-    
-    showToast(`Set end frame for Rally #${activeRally} at frame ${currentFrameIndex + 1}`, "success");
+    }));    
+    showToast(`End frame set at ${frameNumber + 1}, Ball at (${Math.round(ballPosition.x)}, ${Math.round(ballPosition.y)})`, "success");
+    setIsMarkingEnd(false);
   };
 
   const handleToggleMarkHitting = () => {
@@ -302,6 +394,15 @@ const RallyAnalysisView: React.FC = () => {
     return rally.hittingMoments.some(moment => moment.frameNumber === currentFrameIndex);
   };
 
+  const isCurrentFrameEndFrame = () => {
+    if (!activeRally) return false;
+    
+    const rally = rallyData.rallies[activeRally];
+    if (!rally) return false;
+    
+    return rally.endFrame === currentFrameIndex;
+  }
+
   const toggleRallyExpansion = (rallyId: string) => {
     setExpandedRallies(prev => ({
       ...prev,
@@ -350,6 +451,14 @@ const RallyAnalysisView: React.FC = () => {
     return colors[colorIndex];
   };
 
+  // Keyboard shortcut information UI component
+  const keyboardShortcutsInfo = (
+    <div className="mt-2 text-xs text-center text-base-content/70">
+      <p>Use keyboard shortcuts: ← → (Previous/Next), Home/End (First/Last), PgUp/PgDn (Jump 10 frames), 
+        H (Mark Hitting), N (Toggle Net Lines)</p>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -365,7 +474,7 @@ const RallyAnalysisView: React.FC = () => {
       {/* Video Selection */}
       <div className="card bg-base-100 shadow-lg">
         <div className="card-body">
-          <h3 className="card-title">Select Processed Video</h3>          
+          <h3 className="card-title">Select Processed Video</h3>
           <VideoSelector onSelectVideo={handleVideoSelection} currentVideo={selectedVideo} />
         </div>
       </div>
@@ -499,6 +608,13 @@ const RallyAnalysisView: React.FC = () => {
                     videoId={videoId}
                     onMarkHittingMoment={handleMarkHittingMoment}
                   />
+                ) : isMarkingEnd ? (
+                  <EndFrameMarker
+                    imageUrl={frames[currentFrameIndex]}
+                    videoId={videoId}
+                    onMarkEndFrame={handleMarkEndFrame}
+                    frameNumber={currentFrameIndex}
+                    />
                 ) : (
                   <div className="flex justify-center relative">
                     <img 
@@ -543,11 +659,18 @@ const RallyAnalysisView: React.FC = () => {
                     )}
                     
                     {/* Hitting moment indicator */}
-                    {isCurrentFrameHittingMoment() && (
-                      <div className="absolute top-2 right-2 bg-success text-white p-2 rounded shadow-lg">
-                        Hitting Moment
-                      </div>
-                    )}
+                    <div className="absolute top-2 right-2 flex flex-col gap-2">
+                      {isCurrentFrameHittingMoment() && (
+                        <div className="bg-success text-white p-2 rounded shadow-lg">
+                          Hitting Moment
+                        </div>
+                      )}
+                      {isCurrentFrameEndFrame() && (
+                        <div className="bg-success text-white p-2 rounded shadow-lg">
+                          End Frame
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -560,7 +683,7 @@ const RallyAnalysisView: React.FC = () => {
                     <button 
                       className="btn btn-success"
                       onClick={handleStartRally}
-                      disabled={isSettingNet || isEditing}
+                      disabled={isSettingNet || isEditing || isMarkingHitting|| isMarkingEnd}
                     >
                       Create New Rally
                     </button>
@@ -569,16 +692,16 @@ const RallyAnalysisView: React.FC = () => {
                       <>
                         <button 
                           className="btn btn-primary"
-                          onClick={handleSetRallyEndFrame}
-                          disabled={isSettingNet || isEditing}
+                          onClick={handleToggleMarkEnd}
+                          disabled={isSettingNet || isEditing || isMarkingHitting}
                         >
-                          Set End Frame
+                          {isMarkingEnd ? 'Cancel' : 'Mark End Frame'}
                         </button>
                         
                         <button 
                           className={`btn ${isMarkingHitting ? 'btn-error' : 'btn-accent'}`}
                           onClick={handleToggleMarkHitting}
-                          disabled={isSettingNet || isEditing}
+                          disabled={isSettingNet || isEditing || isMarkingEnd}
                         >
                           {isMarkingHitting ? 'Cancel' : 'Mark Hitting Moment'}
                         </button>
@@ -628,6 +751,9 @@ const RallyAnalysisView: React.FC = () => {
                   />
                   <span className="w-16">{frames.length}</span>
                 </div>
+                
+                {/* Display keyboard shortcuts info */}
+                {keyboardShortcutsInfo}
               </div>
             </div>
           </div>
@@ -637,7 +763,7 @@ const RallyAnalysisView: React.FC = () => {
             <div className="card-body">
               <h3 className="card-title">Rally Information</h3>
               
-              {Object.keys(rallyData.rallies ?? {}).length > 0 ? (
+              {Object.keys(rallyData.rallies).length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="table table-zebra w-full">
                     <thead>
@@ -838,17 +964,41 @@ const RallyAnalysisView: React.FC = () => {
                   </ol>
                 </div>
                 <div className="card bg-base-200 shadow-sm p-3 rounded-lg">
-                  <h4 className="text-base font-bold mb-3">Tips & Features</h4>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li className="text-sm">The net position is shown with red (horizontal) and blue (vertical) lines</li>
-                    <li className="text-sm">You can toggle the visibility of net lines using the "Hide Net Lines" button</li>
-                    <li className="text-sm">Edit bounding boxes if needed for better player detection</li>
-                    <li className="text-sm">You can create multiple rallies in the same video</li>
-                    <li className="text-sm">Select a rally from the table to continue working on it</li>
-                    <li className="text-sm">Jump directly to specific frames using the slider</li>
-                    <li className="text-sm">Click on frame numbers in the rally table to navigate quickly</li>
-                    <li className="text-sm">Each rally tracks start/end frames and hitting moments</li>
-                  </ul>
+                  <h4 className="text-base font-bold mb-3">Keyboard Shortcuts</h4>
+                  <div className="grid grid-cols-1 gap-1 ml-2">
+                    <div className="flex justify-between">
+                      <span className="font-mono">←</span>
+                      <span className="text-sm">Previous frame</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-mono">→</span>
+                      <span className="text-sm">Next frame</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-mono">Home</span>
+                      <span className="text-sm">First frame</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-mono">End</span>
+                      <span className="text-sm">Last frame</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-mono">Page Up</span>
+                      <span className="text-sm">Back 10 frames</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-mono">Page Down</span>
+                      <span className="text-sm">Forward 10 frames</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-mono">H</span>
+                      <span className="text-sm">Mark hitting moment</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-mono">N</span>
+                      <span className="text-sm">Toggle net lines</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

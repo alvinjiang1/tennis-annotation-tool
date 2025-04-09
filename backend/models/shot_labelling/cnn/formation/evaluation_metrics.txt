@@ -1,0 +1,18 @@
+
+===== EVALUATION METRICS =====
+
+Per-class metrics:
+Class		Precision	Recall		F1		Support		AUC
+convention..	1.0000		0.8571		0.9231		70		0.9524
+i-formatio..	0.4737		1.0000		0.6429		9		0.9524
+
+Macro average:
+Precision: 0.7368
+Recall: 0.9286
+F1: 0.7830
+AUC: 0.9524
+
+Weighted average:
+Precision: 0.9400
+Recall: 0.8734
+F1: 0.8912

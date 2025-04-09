@@ -44,7 +44,7 @@ const ShotLabelingView: React.FC = () => {
       setSelectedRally(0);
       setSelectedEvent(0);
       
-      // Check and load label data
+      // Check and load label file
       checkLabelFile(id);
     }
   };
@@ -201,6 +201,25 @@ const ShotLabelingView: React.FC = () => {
       const fileFrameNum = parseInt(fileName.split('_')[0]);
       return fileFrameNum === frameIndex;
     }) || '';
+  };
+
+  // Get the frame index in the frames array for the current shot
+  const getCurrentFrameIndex = () => {
+    if (!labelData || selectedRally >= labelData.rallies.length) return 0;
+    
+    const rally = labelData.rallies[selectedRally];
+    if (!rally || selectedEvent >= rally.events.length) return 0;
+    
+    const event = rally.events[selectedEvent];
+    const frameNumber = event.frame;
+    
+    // Find the index of the frame that matches this frame number
+    return frames.findIndex(url => {
+      const urlParts = url.split('/');
+      const fileName = urlParts[urlParts.length - 1];
+      const fileFrameNum = parseInt(fileName.split('_')[0]);
+      return fileFrameNum === frameNumber;
+    });
   };
   
   // Get player name from player ID
@@ -407,6 +426,8 @@ const ShotLabelingView: React.FC = () => {
                    label={labelData.rallies[selectedRally].events[selectedEvent]}
                    players={labelData.rallies[selectedRally].player_descriptons || {}}
                    onUpdateLabel={handleUpdateLabel}
+                   allFrames={frames}
+                   currentFrameIndex={getCurrentFrameIndex()}
                  />
                </div>
              </div>
@@ -434,6 +455,7 @@ const ShotLabelingView: React.FC = () => {
                 <li className="text-sm">Select a video with generated labels from the dropdown</li>
                 <li className="text-sm">Choose a rally to edit from the buttons</li>
                 <li className="text-sm">Select a specific shot within the rally</li>
+                <li className="text-sm">Use the frame navigation to scroll ahead/back to see shot results</li>
                 <li className="text-sm">Click "Edit Label" to modify shot properties</li>
                 <li className="text-sm">Make changes to the shot's court position, shot type, technique, etc.</li>
                 <li className="text-sm">Click "Save Changes" to update the label</li>
@@ -441,7 +463,16 @@ const ShotLabelingView: React.FC = () => {
               </ol>
             </div>
             <div className="card bg-base-200 shadow-sm p-3 rounded-lg">
-              <h4 className="text-base font-bold mb-3">Label Components</h4>
+              <h4 className="text-base font-bold mb-3">Frame Navigation</h4>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li className="text-sm">Use the frame controls to scroll back/ahead up to 45 frames</li>
+                <li className="text-sm">The slider lets you quickly jump to any frame within that range</li>
+                <li className="text-sm">Frames ahead of the shot show the ball trajectory and outcome</li>
+                <li className="text-sm">Click "Shot Frame" to return to the original shot position</li>
+                <li className="text-sm">Use keyboard arrow keys for quick navigation</li>
+              </ul>
+              
+              <h4 className="text-base font-bold mt-4 mb-2">Label Components</h4>
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li className="text-sm"><span className="font-medium">Court Position:</span> near/far + deuce/ad</li>
                 <li className="text-sm"><span className="font-medium">Shot Type:</span> serve, return, stroke</li>
@@ -450,16 +481,6 @@ const ShotLabelingView: React.FC = () => {
                 <li className="text-sm"><span className="font-medium">Direction:</span> crosscourt (CC), down the line (DL), inside-out (IO), inside-in (II)</li>
                 <li className="text-sm"><span className="font-medium">Outcome:</span> in, error (err), winner (win)</li>
               </ul>
-              
-              <h4 className="text-base font-bold mt-4 mb-2">About Label Sources</h4>
-              <div className="space-y-2 ml-2">
-                <p className="text-sm">
-                  <span className="font-medium text-success">Confirmed Labels:</span> Edited and reviewed labels stored in the "confirmed_labels" directory.
-                </p>
-                <p className="text-sm">
-                  <span className="font-medium text-warning">Generated Labels:</span> Initial AI-generated labels stored in the "generated_labels" directory.
-                </p>
-              </div>
             </div>
           </div>
         </div>
