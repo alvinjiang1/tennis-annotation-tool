@@ -15,21 +15,9 @@ db.sqlite3
 *.egg-info/
 pip-log.txt
 pip-delete-this-directory.txt
-backend/uploads
-backend/processed
-backend/checkpoints
-backend/weights
-backend/training_data
-backend/bert
-# backend/GroundingDINO/output
-backend/groundingdino
-backend/build
-backend/predictions
-backend/models/grounding_dino/bert
-backend/models/grounding_dino/GroundingDINO/output
-backend/models/grounding_dino/original_groundingdino
-backend/models/grounding_dino/groundingdino_swint_ogc.pth
-backend/models/grounding_dino/weights
+build/
+original_groundingdino/
+experiments/
 
 # Flask Logs
 *.log
@@ -77,7 +65,6 @@ docker-compose.yaml
 /migrations/
 */data/
 groundingdino/
-GroundingDINO/
 bert/
 groundingdino_swint_ogc.pth
 *.pth

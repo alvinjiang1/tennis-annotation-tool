@@ -1,0 +1,18 @@
+{
+    "train": [
+        {
+            "root": "data/grounding_dino_training/Sock__Isner_vs_Gonzalez__Roger-Vasselin_for_the_Title_/train",
+            "anno": "data/grounding_dino_training/Sock__Isner_vs_Gonzalez__Roger-Vasselin_for_the_Title_/train.jsonl",
+            "label_map": "data/grounding_dino_training/Sock__Isner_vs_Gonzalez__Roger-Vasselin_for_the_Title_/label.json",
+            "dataset_mode": "odvg"
+        }
+    ],
+    "val": [
+        {
+            "root": "data/grounding_dino_training/Sock__Isner_vs_Gonzalez__Roger-Vasselin_for_the_Title_/valid",
+            "anno": "data/grounding_dino_training/Sock__Isner_vs_Gonzalez__Roger-Vasselin_for_the_Title_/valid/_annotations.coco.json",
+            "label_map": null,
+            "dataset_mode": "coco"
+        }
+    ]
+}

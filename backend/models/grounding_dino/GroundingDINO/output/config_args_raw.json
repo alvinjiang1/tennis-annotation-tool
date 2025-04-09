@@ -1,0 +1,30 @@
+{
+  "config_file": "GroundingDINO/config/cfg_odvg.py",
+  "options": {
+    "text_encoder_type": "bert"
+  },
+  "datasets": "GroundingDINO/config/datasets_mixed_odvg.json",
+  "remove_difficult": false,
+  "fix_size": false,
+  "output_dir": "GroundingDINO/output",
+  "note": "",
+  "device": "cuda",
+  "seed": 42,
+  "resume": "",
+  "pretrain_model_path": "weights/groundingdino_swint_ogc.pth",
+  "finetune_ignore": null,
+  "start_epoch": 0,
+  "eval": false,
+  "num_workers": 8,
+  "test": false,
+  "debug": false,
+  "find_unused_params": false,
+  "save_results": false,
+  "save_log": false,
+  "world_size": 1,
+  "dist_url": "env://",
+  "rank": 0,
+  "local_rank": 0,
+  "amp": false,
+  "distributed": false
+}
