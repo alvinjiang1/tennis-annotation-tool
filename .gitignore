@@ -21,10 +21,15 @@ backend/checkpoints
 backend/weights
 backend/training_data
 backend/bert
-backend/GroundingDINO/output
+# backend/GroundingDINO/output
 backend/groundingdino
 backend/build
 backend/predictions
+backend/models/grounding_dino/bert
+backend/models/grounding_dino/GroundingDINO/output
+backend/models/grounding_dino/original_groundingdino
+backend/models/grounding_dino/groundingdino_swint_ogc.pth
+backend/models/grounding_dino/weights
 
 # Flask Logs
 *.log

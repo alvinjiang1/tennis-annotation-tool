@@ -2,11 +2,13 @@ from dotenv import load_dotenv
 load_dotenv()
 from flask import Flask
 from flask_cors import CORS
-from strawberry.flask.views import GraphQLView
 import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.join(os.path.abspath(os.path.dirname(__file__)), 'models', 'grounding_dino'))
+for path in sys.path:
+    print(path)
 
 from routes.annotation import annotation_router
 from routes.video import video_router
@@ -36,4 +38,4 @@ app.register_blueprint(label_router, url_prefix='/api/label')
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)

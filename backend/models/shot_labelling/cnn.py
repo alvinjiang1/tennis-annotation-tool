@@ -531,7 +531,8 @@ class CNNModel(ShotLabellingModel):
                 
                 # Forward pass
                 outputs = self.models["formation"](player_tensor, partner_tensor)
-                _, predicted = torch.max(outputs, 1)
+                outputs_abs = torch.abs(outputs)
+                _, predicted = torch.max(outputs_abs, 1) # to be fixed
                 
                 # Get the label
                 predicted_idx = predicted.item()
