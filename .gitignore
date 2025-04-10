@@ -65,7 +65,8 @@ docker-compose.yaml
 /migrations/
 */data/
 groundingdino/
-bert/
+pretrained/
+*.safetensors
 groundingdino_swint_ogc.pth
 *.pth
 *.png

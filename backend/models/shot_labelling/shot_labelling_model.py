@@ -102,11 +102,8 @@ class ShotLabellingModel:
     def get_image_from_frame_number(self, frame_number):
         """Fetches image from the video frame number"""
         frame_name = "%04d_pred.jpg" % frame_number
-        print(self.pose_frames_dir)
         full_frame_path = os.path.join(self.pose_frames_dir, frame_name)
         if not os.path.exists(full_frame_path):
-            print(full_frame_path)
-            print(f"Frame: {frame_name} not found. Skipping")
             return None
         return PIL.Image.open(full_frame_path)
 
